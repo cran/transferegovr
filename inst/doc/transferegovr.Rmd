@@ -1,0 +1,237 @@
+---
+title: "Introduction to transferegovr"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to transferegovr}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+TransfereGov publishes three open data APIs, covering forty-eight tables between
+them. This vignette shows how to find your way around them and retrieve data
+without downloading more than you meant to.
+
+The code here is not run when the vignette is built, because it would call the
+government's servers.
+
+```{r setup}
+library(transferegovr)
+```
+
+## The three modules
+
+```{r}
+tg_modules()
+#> # A tibble: 3 × 4
+#>   module                  label                      tables url
+#>   <chr>                   <chr>                       <int> <chr>
+#> 1 transferenciasespeciais Special transfers              14 https://api.tran…
+#> 2 fundoafundo             Fund-to-fund transfers         21 https://api.tran…
+#> 3 ted                     Decentralized credit (TED)     13 https://api.tran…
+```
+
+* **Special transfers** are the modality created by Constitutional Amendment
+  105/2019, through which individual parliamentary amendments are transferred
+  directly to states, the Federal District and municipalities.
+* **Fund-to-fund transfers** move money from a federal fund straight into a
+  state, district or municipal fund, under the terms of specific legislation.
+* **TED**, *termo de execução descentralizada*, is how budget credit is
+  decentralized between federal bodies.
+
+Module names may be written with underscores, so `"fundo_a_fundo"` and
+`"transferencias_especiais"` both work.
+
+## Finding a table
+
+```{r}
+tg_tables("ted")
+#> # A tibble: 13 × 5
+#>   module table                      columns primary_key description
+#>   <chr>  <chr>                        <int> <chr>       <chr>
+#> 1 ted    evento                          10 NA          …
+#> 2 ted    nota_credito                    11 NA          …
+#> 3 ted    plano_acao                      20 NA          …
+#> …
+```
+
+Five table names appear in more than one module — `programa`, `plano_acao`,
+`plano_acao_meta`, `plano_acao_analise` and `programa_beneficiario` — with
+different columns in each. The module is always part of the address.
+
+## Finding a column
+
+```{r}
+tg_fields("ted", "plano_acao")
+#> # A tibble: 20 × 5
+#>   field                 r_type    pg_type           primary_key description
+#>   <chr>                 <chr>     <chr>             <lgl>       <chr>
+#> 1 id_plano_acao         double    bigint            FALSE       Identifica…
+#> 2 id_programa           double    bigint            FALSE       Identifica…
+#> 3 sigla_unidade_descen… character character varyi… FALSE       Sigla da U…
+#> …
+```
+
+Every column listed can be filtered on, selected, and ordered by. `r_type` is
+the R type the package coerces the column to, taken from the Postgres type in
+`pg_type`.
+
+Column names, table names and categorical values are in Portuguese because they
+belong to the API. The package's own interface is in English.
+
+## Retrieving rows
+
+```{r}
+tg_get("ted", "plano_acao", .limit = 5)
+```
+
+Filters are named after the columns they apply to. A bare value means "equals":
+
+```{r}
+tg_get("ted", "plano_acao", aa_ano_plano_acao = 2024)
+```
+
+A bare vector means "is one of":
+
+```{r}
+tg_get("ted", "plano_acao", aa_ano_plano_acao = c(2024, 2025))
+```
+
+Anything else comes from `tg_operators()`:
+
+```{r}
+tg_operators()
+#> # A tibble: 15 × 3
+#>   operator postgrest meaning
+#>   <chr>    <chr>     <chr>
+#> 1 eq       eq        equals
+#> 2 neq      neq       does not equal
+#> 3 gt       gt        greater than
+#> …
+```
+
+```{r}
+tg_get(
+  "ted", "plano_acao",
+  aa_ano_plano_acao = gte(2024),
+  tx_objeto_plano_acao = ilike("*pesquisa*"),
+  tx_justificativa_plano_acao = not(is_null())
+)
+```
+
+Two conditions on the same column go in a list, and the API combines them with
+AND:
+
+```{r}
+tg_get(
+  "ted", "plano_acao",
+  dt_inicio_vigencia = list(gte("2024-01-01"), lt("2025-01-01"))
+)
+```
+
+`Date` and `POSIXct` values are formatted for you, so this is equivalent:
+
+```{r}
+tg_get(
+  "ted", "plano_acao",
+  dt_inicio_vigencia = list(
+    gte(as.Date("2024-01-01")), lt(as.Date("2025-01-01"))
+  )
+)
+```
+
+## Selecting and ordering
+
+Selecting fewer columns makes a large query markedly faster, because the service
+does less work and sends less over the wire.
+
+```{r}
+tg_get(
+  "ted", "plano_acao",
+  .select = c("id_plano_acao", "vl_total_plano_acao", "dt_inicio_vigencia"),
+  .order = "vl_total_plano_acao.desc",
+  .limit = 10
+)
+```
+
+`.order` accepts several columns, each optionally suffixed with `.asc` or
+`.desc`, and with `.nullsfirst` or `.nullslast`:
+
+```{r}
+tg_get(
+  "ted", "plano_acao",
+  .order = c("aa_ano_plano_acao.desc", "vl_total_plano_acao.desc.nullslast")
+)
+```
+
+## How big is it?
+
+Ask before you fetch. `tg_count()` returns the number of matching rows without
+retrieving any of them:
+
+```{r}
+tg_count("ted", "plano_acao")
+#> [1] 6176
+
+tg_count("fundoafundo", "gestao_financeira_lancamentos")
+#> [1] 1115444
+```
+
+The second of those is over a million rows. At 1000 rows per request — the
+service's cap, whatever you ask for — that is more than a thousand requests. The
+pagination vignette covers how to approach a table that size.
+
+## Types
+
+Columns are typed from the schema the API publishes, not inferred from the
+values that happened to arrive:
+
+```{r}
+plans <- tg_get("ted", "plano_acao", .limit = 5)
+
+class(plans$dt_inicio_vigencia)
+#> [1] "Date"
+class(plans$in_forma_execucao_direta)
+#> [1] "logical"
+class(plans$aa_ano_plano_acao)
+#> [1] "integer"
+```
+
+This matters across pages: a column that is entirely null on one page would be
+inferred as logical there and as character on the next. Typing from the schema
+keeps it stable. It also holds for an empty result, which still carries the
+table's full set of columns with their proper types.
+
+Identifier columns declared as `bigint` come back as `double` rather than
+`integer`, because a value beyond `.Machine$integer.max` would become `NA` as an
+integer.
+
+## What you asked for and what you got
+
+```{r}
+plans <- tg_get("ted", "plano_acao", .limit = 2500)
+
+tg_metadata(plans)
+#> $module
+#> [1] "ted"
+#> $table
+#> [1] "plano_acao"
+#> $total_rows
+#> [1] 6176
+#> $rows_returned
+#> [1] 2500
+#> $pages
+#> [1] 3
+#> …
+```
+
+`total_rows` is what the API said matched; `rows_returned` is what you have.
+Keeping both is what makes a partial download recognizable as one.
+
+## Where to next
+
+* `vignette("pagination")` — collecting large tables safely.
+* `vignette("joining-tables")` — putting the tables back together.

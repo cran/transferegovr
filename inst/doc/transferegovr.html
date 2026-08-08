@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Introduction to transferegovr</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Introduction to transferegovr</h1>
+
+
+
+<p>TransfereGov publishes three open data APIs, covering forty-eight
+tables between them. This vignette shows how to find your way around
+them and retrieve data without downloading more than you meant to.</p>
+<p>The code here is not run when the vignette is built, because it would
+call the government’s servers.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(transferegovr)</span></code></pre></div>
+<div id="the-three-modules" class="section level2">
+<h2>The three modules</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">tg_modules</span>()</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co">#&gt; # A tibble: 3 × 4</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co">#&gt;   module                  label                      tables url</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;                   &lt;chr&gt;                       &lt;int&gt; &lt;chr&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt; 1 transferenciasespeciais Special transfers              14 https://api.tran…</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt; 2 fundoafundo             Fund-to-fund transfers         21 https://api.tran…</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt; 3 ted                     Decentralized credit (TED)     13 https://api.tran…</span></span></code></pre></div>
+<ul>
+<li><strong>Special transfers</strong> are the modality created by
+Constitutional Amendment 105/2019, through which individual
+parliamentary amendments are transferred directly to states, the Federal
+District and municipalities.</li>
+<li><strong>Fund-to-fund transfers</strong> move money from a federal
+fund straight into a state, district or municipal fund, under the terms
+of specific legislation.</li>
+<li><strong>TED</strong>, <em>termo de execução descentralizada</em>, is
+how budget credit is decentralized between federal bodies.</li>
+</ul>
+<p>Module names may be written with underscores, so
+<code>&quot;fundo_a_fundo&quot;</code> and <code>&quot;transferencias_especiais&quot;</code>
+both work.</p>
+</div>
+<div id="finding-a-table" class="section level2">
+<h2>Finding a table</h2>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">tg_tables</span>(<span class="st">&quot;ted&quot;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co">#&gt; # A tibble: 13 × 5</span></span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="co">#&gt;   module table                      columns primary_key description</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;  &lt;chr&gt;                        &lt;int&gt; &lt;chr&gt;       &lt;chr&gt;</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="co">#&gt; 1 ted    evento                          10 NA          …</span></span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="co">#&gt; 2 ted    nota_credito                    11 NA          …</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a><span class="co">#&gt; 3 ted    plano_acao                      20 NA          …</span></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a><span class="co">#&gt; …</span></span></code></pre></div>
+<p>Five table names appear in more than one module —
+<code>programa</code>, <code>plano_acao</code>,
+<code>plano_acao_meta</code>, <code>plano_acao_analise</code> and
+<code>programa_beneficiario</code> — with different columns in each. The
+module is always part of the address.</p>
+</div>
+<div id="finding-a-column" class="section level2">
+<h2>Finding a column</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">tg_fields</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="co">#&gt; # A tibble: 20 × 5</span></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="co">#&gt;   field                 r_type    pg_type           primary_key description</span></span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;                 &lt;chr&gt;     &lt;chr&gt;             &lt;lgl&gt;       &lt;chr&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a><span class="co">#&gt; 1 id_plano_acao         double    bigint            FALSE       Identifica…</span></span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a><span class="co">#&gt; 2 id_programa           double    bigint            FALSE       Identifica…</span></span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a><span class="co">#&gt; 3 sigla_unidade_descen… character character varyi… FALSE       Sigla da U…</span></span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a><span class="co">#&gt; …</span></span></code></pre></div>
+<p>Every column listed can be filtered on, selected, and ordered by.
+<code>r_type</code> is the R type the package coerces the column to,
+taken from the Postgres type in <code>pg_type</code>.</p>
+<p>Column names, table names and categorical values are in Portuguese
+because they belong to the API. The package’s own interface is in
+English.</p>
+</div>
+<div id="retrieving-rows" class="section level2">
+<h2>Retrieving rows</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>, <span class="at">.limit =</span> <span class="dv">5</span>)</span></code></pre></div>
+<p>Filters are named after the columns they apply to. A bare value means
+“equals”:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>, <span class="at">aa_ano_plano_acao =</span> <span class="dv">2024</span>)</span></code></pre></div>
+<p>A bare vector means “is one of”:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>, <span class="at">aa_ano_plano_acao =</span> <span class="fu">c</span>(<span class="dv">2024</span>, <span class="dv">2025</span>))</span></code></pre></div>
+<p>Anything else comes from <code>tg_operators()</code>:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">tg_operators</span>()</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="co">#&gt; # A tibble: 15 × 3</span></span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a><span class="co">#&gt;   operator postgrest meaning</span></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;    &lt;chr&gt;     &lt;chr&gt;</span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="co">#&gt; 1 eq       eq        equals</span></span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a><span class="co">#&gt; 2 neq      neq       does not equal</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="co">#&gt; 3 gt       gt        greater than</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a><span class="co">#&gt; …</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">tg_get</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>,</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">aa_ano_plano_acao =</span> <span class="fu">gte</span>(<span class="dv">2024</span>),</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="at">tx_objeto_plano_acao =</span> <span class="fu">ilike</span>(<span class="st">&quot;*pesquisa*&quot;</span>),</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  <span class="at">tx_justificativa_plano_acao =</span> <span class="fu">not</span>(<span class="fu">is_null</span>())</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>)</span></code></pre></div>
+<p>Two conditions on the same column go in a list, and the API combines
+them with AND:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">tg_get</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>,</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>  <span class="at">dt_inicio_vigencia =</span> <span class="fu">list</span>(<span class="fu">gte</span>(<span class="st">&quot;2024-01-01&quot;</span>), <span class="fu">lt</span>(<span class="st">&quot;2025-01-01&quot;</span>))</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>)</span></code></pre></div>
+<p><code>Date</code> and <code>POSIXct</code> values are formatted for
+you, so this is equivalent:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">tg_get</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>  <span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>,</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>  <span class="at">dt_inicio_vigencia =</span> <span class="fu">list</span>(</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>    <span class="fu">gte</span>(<span class="fu">as.Date</span>(<span class="st">&quot;2024-01-01&quot;</span>)), <span class="fu">lt</span>(<span class="fu">as.Date</span>(<span class="st">&quot;2025-01-01&quot;</span>))</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>  )</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="selecting-and-ordering" class="section level2">
+<h2>Selecting and ordering</h2>
+<p>Selecting fewer columns makes a large query markedly faster, because
+the service does less work and sends less over the wire.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="fu">tg_get</span>(</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  <span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>,</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>  <span class="at">.select =</span> <span class="fu">c</span>(<span class="st">&quot;id_plano_acao&quot;</span>, <span class="st">&quot;vl_total_plano_acao&quot;</span>, <span class="st">&quot;dt_inicio_vigencia&quot;</span>),</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>  <span class="at">.order =</span> <span class="st">&quot;vl_total_plano_acao.desc&quot;</span>,</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>  <span class="at">.limit =</span> <span class="dv">10</span></span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>)</span></code></pre></div>
+<p><code>.order</code> accepts several columns, each optionally suffixed
+with <code>.asc</code> or <code>.desc</code>, and with
+<code>.nullsfirst</code> or <code>.nullslast</code>:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">tg_get</span>(</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>  <span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>,</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>  <span class="at">.order =</span> <span class="fu">c</span>(<span class="st">&quot;aa_ano_plano_acao.desc&quot;</span>, <span class="st">&quot;vl_total_plano_acao.desc.nullslast&quot;</span>)</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>)</span></code></pre></div>
+</div>
+<div id="how-big-is-it" class="section level2">
+<h2>How big is it?</h2>
+<p>Ask before you fetch. <code>tg_count()</code> returns the number of
+matching rows without retrieving any of them:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">tg_count</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="co">#&gt; [1] 6176</span></span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a><span class="fu">tg_count</span>(<span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;gestao_financeira_lancamentos&quot;</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a><span class="co">#&gt; [1] 1115444</span></span></code></pre></div>
+<p>The second of those is over a million rows. At 1000 rows per request
+— the service’s cap, whatever you ask for — that is more than a thousand
+requests. The pagination vignette covers how to approach a table that
+size.</p>
+</div>
+<div id="types" class="section level2">
+<h2>Types</h2>
+<p>Columns are typed from the schema the API publishes, not inferred
+from the values that happened to arrive:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>plans <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>, <span class="at">.limit =</span> <span class="dv">5</span>)</span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a><span class="fu">class</span>(plans<span class="sc">$</span>dt_inicio_vigencia)</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Date&quot;</span></span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a><span class="fu">class</span>(plans<span class="sc">$</span>in_forma_execucao_direta)</span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a><span class="co">#&gt; [1] &quot;logical&quot;</span></span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a><span class="fu">class</span>(plans<span class="sc">$</span>aa_ano_plano_acao)</span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a><span class="co">#&gt; [1] &quot;integer&quot;</span></span></code></pre></div>
+<p>This matters across pages: a column that is entirely null on one page
+would be inferred as logical there and as character on the next. Typing
+from the schema keeps it stable. It also holds for an empty result,
+which still carries the table’s full set of columns with their proper
+types.</p>
+<p>Identifier columns declared as <code>bigint</code> come back as
+<code>double</code> rather than <code>integer</code>, because a value
+beyond <code>.Machine$integer.max</code> would become <code>NA</code> as
+an integer.</p>
+</div>
+<div id="what-you-asked-for-and-what-you-got" class="section level2">
+<h2>What you asked for and what you got</h2>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>plans <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>, <span class="at">.limit =</span> <span class="dv">2500</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a><span class="fu">tg_metadata</span>(plans)</span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a><span class="co">#&gt; $module</span></span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a><span class="co">#&gt; [1] &quot;ted&quot;</span></span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a><span class="co">#&gt; $table</span></span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a><span class="co">#&gt; [1] &quot;plano_acao&quot;</span></span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a><span class="co">#&gt; $total_rows</span></span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a><span class="co">#&gt; [1] 6176</span></span>
+<span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a><span class="co">#&gt; $rows_returned</span></span>
+<span id="cb16-11"><a href="#cb16-11" tabindex="-1"></a><span class="co">#&gt; [1] 2500</span></span>
+<span id="cb16-12"><a href="#cb16-12" tabindex="-1"></a><span class="co">#&gt; $pages</span></span>
+<span id="cb16-13"><a href="#cb16-13" tabindex="-1"></a><span class="co">#&gt; [1] 3</span></span>
+<span id="cb16-14"><a href="#cb16-14" tabindex="-1"></a><span class="co">#&gt; …</span></span></code></pre></div>
+<p><code>total_rows</code> is what the API said matched;
+<code>rows_returned</code> is what you have. Keeping both is what makes
+a partial download recognizable as one.</p>
+</div>
+<div id="where-to-next" class="section level2">
+<h2>Where to next</h2>
+<ul>
+<li><code>vignette(&quot;pagination&quot;)</code> — collecting large tables
+safely.</li>
+<li><code>vignette(&quot;joining-tables&quot;)</code> — putting the tables back
+together.</li>
+</ul>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

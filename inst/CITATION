@@ -1,0 +1,21 @@
+year <- if (!is.null(meta$Packaged)) {
+  sub("-.*", "", meta$Packaged)
+} else {
+  format(Sys.Date(), "%Y")
+}
+
+bibentry(
+  bibtype = "Manual",
+  title = "transferegovr: Access the TransfereGov Open Data APIs",
+  author = c(
+    person("Andre", "Leite"),
+    person("Marcos", "Wasiliew"),
+    person("Hugo", "Vasconcelos"),
+    person("Carlos", "Amorim"),
+    person("Diogo", "Bezerra"),
+    person("Júlia", "Nascimento Barreto")
+  ),
+  year = year,
+  note = paste("R package version", meta$Version),
+  url = "https://github.com/StrategicProjects/transferegovr"
+)

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 862" width="940" height="862"
+     role="img" aria-labelledby="arch-title arch-desc"
+     font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title id="arch-title">transferegovr architecture</title>
+  <desc id="arch-desc">A query passes through the public verbs, then filter and
+  schema validation, then the pagination loop, then the HTTP client and its
+  cache, reaching the three PostgREST services at
+  api.transferegov.gestao.gov.br, and is parsed back into a typed tibble.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10Z" fill="#5D7287"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10Z" fill="#12805B"/>
+    </marker>
+  </defs>
+
+  <rect width="940" height="862" rx="16" fill="#FFFFFF" stroke="#D9E2EC" stroke-width="1.5"/>
+
+  <g fill="none" stroke="#2E6FD9" stroke-width="1" opacity="0.06">
+    <path d="M0 48H940M0 96H940M0 144H940M0 192H940M0 240H940M0 288H940M0 336H940M0 384H940M0 432H940M0 480H940M0 528H940M0 576H940M0 624H940M0 672H940M0 720H940M0 768H940M0 816H940M48 0V862M96 0V862M144 0V862M192 0V862M240 0V862M288 0V862M336 0V862M384 0V862M432 0V862M480 0V862M528 0V862M576 0V862M624 0V862M672 0V862M720 0V862M768 0V862M816 0V862M864 0V862M912 0V862"/>
+  </g>
+
+  <text x="470" y="46" text-anchor="middle" fill="#0A2540" font-size="17" font-weight="700">
+    transferegovr — how a query becomes a tibble
+  </text>
+
+  <!-- public verbs -->
+  <rect x="100" y="70" width="740" height="60" rx="10" fill="#F4F8FB" stroke="#12805B" stroke-width="1.5"/>
+  <text x="470" y="94" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">
+    tg_get() · tg_count() · tg_ted() · tg_fundo_a_fundo() · tg_transferencias_especiais()
+  </text>
+  <text x="470" y="114" text-anchor="middle" fill="#4A6076" font-size="11.5">
+    filters named after their columns; a bare value means equals, a bare vector means is-one-of
+  </text>
+
+  <path d="M470 130V158" stroke="#5D7287" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- validation -->
+  <rect x="100" y="162" width="356" height="96" rx="10" fill="#F4F8FB" stroke="#2E6FD9" stroke-width="1.2"/>
+  <text x="278" y="186" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">filters.R</text>
+  <text x="278" y="208" text-anchor="middle" fill="#4A6076" font-size="11.5">operators evaluated in their own mask,</text>
+  <text x="278" y="226" text-anchor="middle" fill="#4A6076" font-size="11.5">so an attached gt() cannot shadow them</text>
+  <text x="278" y="246" text-anchor="middle" fill="#12805B" font-size="11.5" font-weight="600">column=operator.value</text>
+
+  <rect x="484" y="162" width="356" height="96" rx="10" fill="#F4F8FB" stroke="#2E6FD9" stroke-width="1.2"/>
+  <text x="662" y="186" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">metadata.R + sysdata.rda</text>
+  <text x="662" y="208" text-anchor="middle" fill="#4A6076" font-size="11.5">OpenAPI schema frozen at build time</text>
+  <text x="662" y="226" text-anchor="middle" fill="#4A6076" font-size="11.5">48 tables · 599 columns</text>
+  <text x="662" y="246" text-anchor="middle" fill="#12805B" font-size="11.5" font-weight="600">rejects unknown names · picks the order</text>
+
+  <path d="M470 258V288" stroke="#5D7287" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- pagination -->
+  <rect x="100" y="292" width="740" height="104" rx="10" fill="#F4F8FB" stroke="#2E6FD9" stroke-width="1.2"/>
+  <text x="470" y="316" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">get.R — pagination</text>
+  <text x="470" y="340" text-anchor="middle" fill="#4A6076" font-size="11.5">
+    at most 1000 rows per request — the cap the service applies silently, returning 206 and saying nothing in the body
+  </text>
+  <text x="470" y="360" text-anchor="middle" fill="#4A6076" font-size="11.5">
+    every request carries an explicit order, so offset pages cannot overlap or skip rows
+  </text>
+  <text x="470" y="382" text-anchor="middle" fill="#12805B" font-size="11.5" font-weight="600">
+    Content-Range gives the total; the rows collected are checked against it
+  </text>
+
+  <path d="M470 396V426" stroke="#5D7287" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- transport, and the cache beside it -->
+  <rect x="100" y="430" width="460" height="96" rx="10" fill="#F4F8FB" stroke="#2E6FD9" stroke-width="1.2"/>
+  <text x="330" y="454" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">client.R — httr2</text>
+  <text x="330" y="476" text-anchor="middle" fill="#4A6076" font-size="11.5">throttled to 60 requests a minute</text>
+  <text x="330" y="494" text-anchor="middle" fill="#4A6076" font-size="11.5">retries 429 and 5xx with backoff, never a 400</text>
+  <text x="330" y="514" text-anchor="middle" fill="#4A6076" font-size="11.5">surfaces the PostgREST error body</text>
+
+  <rect x="610" y="430" width="230" height="96" rx="10" fill="#F4F8FB" stroke="#12805B" stroke-width="1.2"/>
+  <text x="725" y="454" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">cache.R</text>
+  <text x="725" y="476" text-anchor="middle" fill="#4A6076" font-size="11.5">keyed on the request URL</text>
+  <text x="725" y="494" text-anchor="middle" fill="#4A6076" font-size="11.5">one hour, in tempdir()</text>
+  <text x="725" y="514" text-anchor="middle" fill="#4A6076" font-size="11.5">the APIs send no ETag</text>
+
+  <path d="M563 478H607" stroke="#12805B" stroke-width="2"
+        marker-start="url(#arrow-accent)" marker-end="url(#arrow-accent)"/>
+  <text x="585" y="468" text-anchor="middle" fill="#12805B" font-size="10">hit</text>
+
+  <!-- one request fans out to whichever service was asked for -->
+  <text x="470" y="546" text-anchor="middle" fill="#5D7287" font-size="11">
+    PostgREST · api.transferegov.gestao.gov.br
+  </text>
+  <g fill="none" stroke="#5D7287" stroke-width="2" stroke-linejoin="round">
+    <path d="M330 526V562"/>
+    <path d="M215 562H725"/>
+  </g>
+  <g fill="none" stroke="#5D7287" stroke-width="2">
+    <path d="M215 562V578" marker-end="url(#arrow)"/>
+    <path d="M470 562V578" marker-end="url(#arrow)"/>
+    <path d="M725 562V578" marker-end="url(#arrow)"/>
+  </g>
+
+  <rect x="100" y="582" width="230" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
+  <text x="215" y="610" text-anchor="middle" fill="#0A2540" font-size="14" font-weight="700">ted</text>
+  <text x="215" y="632" text-anchor="middle" fill="#4A6076" font-size="11.5">13 tables</text>
+
+  <rect x="355" y="582" width="230" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
+  <text x="470" y="610" text-anchor="middle" fill="#0A2540" font-size="14" font-weight="700">fundoafundo</text>
+  <text x="470" y="632" text-anchor="middle" fill="#4A6076" font-size="11.5">21 tables</text>
+
+  <rect x="610" y="582" width="230" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
+  <text x="725" y="610" text-anchor="middle" fill="#0A2540" font-size="14" font-weight="700">transferenciasespeciais</text>
+  <text x="725" y="632" text-anchor="middle" fill="#4A6076" font-size="11.5">14 tables</text>
+
+  <!-- and converges again on the way back -->
+  <g fill="none" stroke="#5D7287" stroke-width="2" stroke-linejoin="round">
+    <path d="M215 654V678"/>
+    <path d="M470 654V678"/>
+    <path d="M725 654V678"/>
+    <path d="M215 678H725"/>
+    <path d="M470 678V704" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- parsing -->
+  <rect x="100" y="708" width="740" height="76" rx="10" fill="#F4F8FB" stroke="#2E6FD9" stroke-width="1.2"/>
+  <text x="470" y="732" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">parse.R</text>
+  <text x="470" y="754" text-anchor="middle" fill="#4A6076" font-size="11.5">
+    JSON to tibble, every column typed from the frozen schema rather than inferred from the values that arrived
+  </text>
+  <text x="470" y="774" text-anchor="middle" fill="#4A6076" font-size="11.5">
+    bigint becomes double · dates and timestamps parsed strictly · an empty result keeps its columns
+  </text>
+
+  <path d="M470 784V810" stroke="#5D7287" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- result -->
+  <rect x="100" y="812" width="740" height="42" rx="10" fill="#F4F8FB" stroke="#12805B" stroke-width="1.5"/>
+  <text x="470" y="838" text-anchor="middle" fill="#0A2540" font-size="13.5" font-weight="700">
+    a tibble, with tg_metadata() recording the API's total, the pages fetched and whether it was cached
+  </text>
+</svg>
