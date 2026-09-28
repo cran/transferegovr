@@ -9,60 +9,43 @@ tg_get(
   module,
   table,
   ...,
-  .select = NULL,
-  .order = NULL,
   .limit = 1000,
   .offset = 0,
-  .page_size = 1000,
-  .params = list(),
+  .page_size = NULL,
   .progress = NULL,
   .cache = NULL,
-  .base_url = tg_base_url()
+  .base_url = NULL
 )
 
 tg_obter(
   module,
   table,
   ...,
-  .select = NULL,
-  .order = NULL,
   .limit = 1000,
   .offset = 0,
-  .page_size = 1000,
-  .params = list(),
+  .page_size = NULL,
   .progress = NULL,
   .cache = NULL,
-  .base_url = tg_base_url()
+  .base_url = NULL
 )
 }
 \arguments{
-\item{module}{A module name from \code{\link[=tg_modules]{tg_modules()}}: \code{"transferenciasespeciais"},
-\code{"fundoafundo"} or \code{"ted"}. Aliases such as \code{"fundo_a_fundo"} are accepted.}
+\item{module}{A module name from \code{\link[=tg_modules]{tg_modules()}}: \code{"especiais"},
+\code{"fundoafundo"}, \code{"parcerias"} or \code{"ted"}. Aliases such as
+\code{"fundo_a_fundo"} are accepted.}
 
 \item{table}{A table name from \code{\link[=tg_tables]{tg_tables()}}.}
 
-\item{...}{Filters, named after the columns they apply to. See the Filters
+\item{...}{Filters, named after the parameters they set. See the Filters
 section.}
-
-\item{.select}{Columns to return, as a character vector. \code{NULL}, the default,
-returns every column. Selecting fewer columns makes large queries markedly
-faster.}
-
-\item{.order}{Sort order, as a character vector of column names, each
-optionally suffixed with \code{.asc} or \code{.desc}, and optionally with
-\code{.nullsfirst} or \code{.nullslast}. \code{NULL} uses the default order described
-under Pagination.}
 
 \item{.limit}{Maximum number of rows to return. Use \code{Inf} for every matching
 row.}
 
 \item{.offset}{Number of matching rows to skip before the first one returned.}
 
-\item{.page_size}{Rows per request, between 1 and 1000.}
-
-\item{.params}{Extra query parameters passed to the API verbatim, as a named
-list. This is the escape hatch for 'PostgREST' features the package does
-not model, such as \code{list(or = "(aa_ano_plano_acao.eq.2024,\\ aa_ano_plano_acao.eq.2025)")}.}
+\item{.page_size}{Rows per request. \code{NULL}, the default, asks for the largest
+page the module serves, which \code{\link[=tg_modules]{tg_modules()}} reports as \code{max_page_size}.}
 
 \item{.progress}{Whether to show a progress bar while collecting pages.
 \code{NULL} shows one in interactive sessions when more than one page is needed.}
@@ -74,54 +57,61 @@ follows the \code{transferegovr.cache} option. See \code{\link[=tg_cache_dir]{tg
 }
 \value{
 A tibble. \code{\link[=tg_metadata]{tg_metadata()}} reports the totals the API gave and how
-many pages were fetched.
+many pages were fetched. A column the API sends as an array of objects
+comes back as a list column; \code{\link[=tg_fields]{tg_fields()}} describes what is inside it.
 }
 \description{
-Queries one of the forty-eight tables published by the three TransfereGov
-open data APIs and returns them as a tibble, with columns typed from the
-API's own schema.
+Queries one of the seventy-four tables published by the TransfereGov open
+data APIs and returns them as a tibble, with columns typed from the API's own
+schema.
 }
 \section{Filters}{
-Name each filter after the column it applies to and give it a value or an
-operator from \code{\link[=tg_operators]{tg_operators()}}. A bare value means "equals", a bare vector
-means "is one of", and a list of operators applies several conditions to the
-same column:
+Name each filter after one of the table's query parameters and give it a
+value. Parameters are combined with AND:
 
-\if{html}{\out{<div class="sourceCode r">}}\preformatted{tg_get("ted", "plano_acao", aa_ano_plano_acao = 2024)
-tg_get("ted", "plano_acao", aa_ano_plano_acao = c(2024, 2025))
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{tg_get("parcerias", "proposta", situacao_proposta = "Aprovada")
 tg_get(
-  "ted", "plano_acao",
-  dt_inicio_vigencia = list(gte("2024-01-01"), lt("2025-01-01"))
+  "parcerias", "proposta",
+  sg_uf_recebedor = "PE", ano_proposta = 2025
 )
 }\if{html}{\out{</div>}}
 
-Column names and categorical values are in Portuguese because they belong to
-the API. Use \code{\link[=tg_fields]{tg_fields()}} to see them.
+The services compare for equality: there is no greater-than and no pattern
+match. Most parameters take one value. Some identifier parameters take
+several and match any of them — \code{\link[=tg_params]{tg_params()}} marks them as \code{multiple}, with
+the most each accepts in \code{max_values}:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{tg_get("ted", "planos_acao_metas", id_plano_acao = c(3, 4))
+}\if{html}{\out{</div>}}
+
+For any other parameter, query each value and bind the results.
+
+Parameter names, and the permitted values of the enumerated ones, are in
+Portuguese because they belong to the API. Use \code{\link[=tg_params]{tg_params()}} to see them.
+A name the packaged schema does not know is an error rather than a request:
+these services ignore a parameter they do not recognize and answer with the
+whole table, so an unchecked typo would return plausible, wrong data.
 }
 
 \section{Pagination}{
-The service returns at most 1000 rows per request, whatever is asked of it,
-so \code{.limit} above that is met by fetching successive pages. \code{.limit} counts
-rows, not pages; use \code{Inf} for every matching row. Several tables hold
-hundreds of thousands of rows, so check the size with \code{\link[=tg_count]{tg_count()}} first.
+Each request returns one page of at most the module's page limit — 200 rows
+for \code{especiais} and \code{parcerias}, 1000 for \code{fundoafundo} and \code{ted} — so a
+larger \code{.limit} is met by fetching successive pages. \code{.limit} counts rows,
+not pages; use \code{Inf} for every matching row. Several tables hold hundreds of
+thousands of rows, so check the size with \code{\link[=tg_count]{tg_count()}} first.
 
-Pages are fetched with an explicit \code{.order} because offset pagination over an
-unordered query has no defined row order and could repeat or skip rows. The
-default order is the table's primary key when the API declares one, and its
-identifier columns otherwise. The number of rows collected is checked against
-the total the API reports, and a mismatch is reported as a warning.
+Row order is the server's and cannot be set: these APIs publish no ordering
+parameter. It was checked to be stable across page sizes, across repeated
+calls and at depth, which is what makes multi-page collection safe. The
+number of rows collected is checked against the total the API reports, and a
+mismatch is reported as a warning.
 }
 
 \examples{
 if (interactive()) {
-  tg_get("ted", "plano_acao", aa_ano_plano_acao = gte(2024), .limit = 50)
+  tg_get("parcerias", "proposta", sg_uf_recebedor = "PE", .limit = 50)
 
-  tg_get(
-    "fundoafundo", "plano_acao",
-    .select = c("id_plano_acao", "vl_total_plano_acao"),
-    .order = "vl_total_plano_acao.desc",
-    .limit = 10
-  )
+  tg_get("fundoafundo", "planos_acao", .limit = 10)
 }
 }
 \seealso{

@@ -1,71 +1,73 @@
 ## ----include = FALSE----------------------------------------------------------
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 
-## ----setup--------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 # library(transferegovr)
 # library(dplyr)
 
 ## -----------------------------------------------------------------------------
-# programas <- tg_get(
-#   "ted", "programa",
-#   .select = c(
-#     "id_programa", "tx_nome_programa", "sigla_unidade_descentralizadora"
-#   ),
-#   .limit = Inf
-# )
+# beneficiarios <- tg_get("especiais", "beneficiarios_especiais", .limit = Inf)
 # 
+# pernambuco <- beneficiarios |>
+#   filter(uf_beneficiario == "PE")
+# 
+# planos <- tg_get("especiais", "planos_acao_especiais", .limit = Inf) |>
+#   semi_join(pernambuco, by = "id_beneficiario")
+
+## -----------------------------------------------------------------------------
 # planos <- tg_get(
-#   "ted", "plano_acao",
-#   .select = c(
-#     "id_plano_acao", "id_programa", "vl_total_plano_acao", "aa_ano_plano_acao"
-#   ),
-#   .limit = Inf
-# )
-# 
-# planos |>
-#   inner_join(programas, by = "id_programa") |>
-#   group_by(sigla_unidade_descentralizadora) |>
-#   summarise(planos = n(), total = sum(vl_total_plano_acao, na.rm = TRUE)) |>
-#   arrange(desc(total))
-# #> # A tibble: 5 × 3
-# #>   sigla_unidade_descentralizadora planos         total
-# #>   <chr>                            <int>         <dbl>
-# #> 1 MDS                                229 422595208242.
-# #> 2 MS                                 794  14472373138.
-# #> 3 FNDCT                              154  13779027285.
-# #> 4 MIDR                               603   5450415783.
-# #> 5 MAPA                               284   2835531350.
-
-## -----------------------------------------------------------------------------
-# sum(!planos$id_programa %in% programas$id_programa)
-# #> [1] 0
-
-## -----------------------------------------------------------------------------
-# planos_2024 <- tg_get(
-#   "ted", "plano_acao",
-#   aa_ano_plano_acao = 2024,
-#   .select = c("id_plano_acao", "id_programa"),
-#   .limit = Inf
-# )
-# 
-# notas <- tg_get(
-#   "ted", "nota_credito",
-#   id_plano_acao = in_(planos_2024$id_plano_acao),
+#   "fundoafundo", "planos_acao",
+#   uf_ente_recebedor_plano_acao = "PE",
 #   .limit = Inf
 # )
 
 ## -----------------------------------------------------------------------------
-# class(planos$id_plano_acao)
-# #> [1] "numeric"
-
-## -----------------------------------------------------------------------------
-# programas_ff <- tg_get("fundoafundo", "programa", .limit = Inf)
+# propostas <- tg_get(
+#   "parcerias", "proposta",
+#   sg_uf_recebedor = "PE", situacao_proposta = "Aprovada",
+#   .limit = Inf
+# )
 # 
-# nrow(programas_ff)
-# #> [1] 129
-# n_distinct(programas_ff$id_programa)
-# #> [1] 125
+# parcerias <- tg_get("parcerias", "parceria", .limit = Inf) |>
+#   semi_join(propostas, by = "id_proposta")
+# 
+# contas <- tg_get("parcerias", "parceria_conta", .limit = Inf) |>
+#   semi_join(parcerias, by = "id_parceria")
 
 ## -----------------------------------------------------------------------------
-# tg_tables() |> filter(!is.na(primary_key))
+# library(purrr)
+# 
+# extratos <- list_rbind(map(contas$id_parceria_conta, function(id) {
+#   tg_get("parcerias", "extrato_bancario", id_parceria_conta = id, .limit = Inf)
+# }))
+
+## -----------------------------------------------------------------------------
+# library(tidyr)
+# 
+# programas <- tg_get("parcerias", "programa", .limit = Inf)
+# 
+# programas |>
+#   select(id_programa, ufs_habilitadas) |>
+#   unnest_longer(ufs_habilitadas) |>
+#   unnest_wider(ufs_habilitadas)
+# #> # A tibble: … × 4
+# #>   id_programa nm_uf        sg_uf cd_ibge
+# #>         <dbl> <chr>        <chr>   <dbl>
+# #> 1           7 MINAS GERAIS MG         31
+# #> …
+
+## -----------------------------------------------------------------------------
+# tg_fields("parcerias", "programa", nested = "ufs_habilitadas")
+
+## -----------------------------------------------------------------------------
+# planos <- tg_get("especiais", "planos_acao_especiais", .limit = 500)
+# beneficiarios <- tg_get("especiais", "beneficiarios_especiais", .limit = Inf)
+# 
+# sum(!planos$id_beneficiario %in% beneficiarios$id_beneficiario)
+
+## -----------------------------------------------------------------------------
+# one_page <- tg_get("fundoafundo", "programas", .limit = 200)
+# 
+# nrow(one_page)
+# length(unique(one_page$id_programa))
 

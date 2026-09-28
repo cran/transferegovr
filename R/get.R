@@ -2,62 +2,65 @@
 
 #' Retrieve rows from a TransfereGov table
 #'
-#' Queries one of the forty-eight tables published by the three TransfereGov
-#' open data APIs and returns them as a tibble, with columns typed from the
-#' API's own schema.
+#' Queries one of the seventy-four tables published by the TransfereGov open
+#' data APIs and returns them as a tibble, with columns typed from the API's own
+#' schema.
 #'
 #' # Filters
 #'
-#' Name each filter after the column it applies to and give it a value or an
-#' operator from [tg_operators()]. A bare value means "equals", a bare vector
-#' means "is one of", and a list of operators applies several conditions to the
-#' same column:
+#' Name each filter after one of the table's query parameters and give it a
+#' value. Parameters are combined with AND:
 #'
 #' ```r
-#' tg_get("ted", "plano_acao", aa_ano_plano_acao = 2024)
-#' tg_get("ted", "plano_acao", aa_ano_plano_acao = c(2024, 2025))
+#' tg_get("parcerias", "proposta", situacao_proposta = "Aprovada")
 #' tg_get(
-#'   "ted", "plano_acao",
-#'   dt_inicio_vigencia = list(gte("2024-01-01"), lt("2025-01-01"))
+#'   "parcerias", "proposta",
+#'   sg_uf_recebedor = "PE", ano_proposta = 2025
 #' )
 #' ```
 #'
-#' Column names and categorical values are in Portuguese because they belong to
-#' the API. Use [tg_fields()] to see them.
+#' The services compare for equality: there is no greater-than and no pattern
+#' match. Most parameters take one value. Some identifier parameters take
+#' several and match any of them — [tg_params()] marks them as `multiple`, with
+#' the most each accepts in `max_values`:
+#'
+#' ```r
+#' tg_get("ted", "planos_acao_metas", id_plano_acao = c(3, 4))
+#' ```
+#'
+#' For any other parameter, query each value and bind the results.
+#'
+#' Parameter names, and the permitted values of the enumerated ones, are in
+#' Portuguese because they belong to the API. Use [tg_params()] to see them.
+#' A name the packaged schema does not know is an error rather than a request:
+#' these services ignore a parameter they do not recognize and answer with the
+#' whole table, so an unchecked typo would return plausible, wrong data.
 #'
 #' # Pagination
 #'
-#' The service returns at most 1000 rows per request, whatever is asked of it,
-#' so `.limit` above that is met by fetching successive pages. `.limit` counts
-#' rows, not pages; use `Inf` for every matching row. Several tables hold
-#' hundreds of thousands of rows, so check the size with [tg_count()] first.
+#' Each request returns one page of at most the module's page limit — 200 rows
+#' for `especiais` and `parcerias`, 1000 for `fundoafundo` and `ted` — so a
+#' larger `.limit` is met by fetching successive pages. `.limit` counts rows,
+#' not pages; use `Inf` for every matching row. Several tables hold hundreds of
+#' thousands of rows, so check the size with [tg_count()] first.
 #'
-#' Pages are fetched with an explicit `.order` because offset pagination over an
-#' unordered query has no defined row order and could repeat or skip rows. The
-#' default order is the table's primary key when the API declares one, and its
-#' identifier columns otherwise. The number of rows collected is checked against
-#' the total the API reports, and a mismatch is reported as a warning.
+#' Row order is the server's and cannot be set: these APIs publish no ordering
+#' parameter. It was checked to be stable across page sizes, across repeated
+#' calls and at depth, which is what makes multi-page collection safe. The
+#' number of rows collected is checked against the total the API reports, and a
+#' mismatch is reported as a warning.
 #'
-#' @param module A module name from [tg_modules()]: `"transferenciasespeciais"`,
-#'   `"fundoafundo"` or `"ted"`. Aliases such as `"fundo_a_fundo"` are accepted.
+#' @param module A module name from [tg_modules()]: `"especiais"`,
+#'   `"fundoafundo"`, `"parcerias"` or `"ted"`. Aliases such as
+#'   `"fundo_a_fundo"` are accepted.
 #' @param table A table name from [tg_tables()].
-#' @param ... Filters, named after the columns they apply to. See the Filters
+#' @param ... Filters, named after the parameters they set. See the Filters
 #'   section.
-#' @param .select Columns to return, as a character vector. `NULL`, the default,
-#'   returns every column. Selecting fewer columns makes large queries markedly
-#'   faster.
-#' @param .order Sort order, as a character vector of column names, each
-#'   optionally suffixed with `.asc` or `.desc`, and optionally with
-#'   `.nullsfirst` or `.nullslast`. `NULL` uses the default order described
-#'   under Pagination.
 #' @param .limit Maximum number of rows to return. Use `Inf` for every matching
 #'   row.
 #' @param .offset Number of matching rows to skip before the first one returned.
-#' @param .page_size Rows per request, between 1 and 1000.
-#' @param .params Extra query parameters passed to the API verbatim, as a named
-#'   list. This is the escape hatch for 'PostgREST' features the package does
-#'   not model, such as `list(or = "(aa_ano_plano_acao.eq.2024,\
-#'   aa_ano_plano_acao.eq.2025)")`.
+#' @param .page_size Rows per request. `NULL`, the default, asks for the largest
+#'   page the module serves, which [tg_modules()] reports as `max_page_size`.
 #' @param .progress Whether to show a progress bar while collecting pages.
 #'   `NULL` shows one in interactive sessions when more than one page is needed.
 #' @param .cache Whether to serve the request from the response cache. `NULL`
@@ -65,75 +68,57 @@
 #' @param .base_url The API base URL. Defaults to [tg_base_url()].
 #'
 #' @return A tibble. [tg_metadata()] reports the totals the API gave and how
-#'   many pages were fetched.
+#'   many pages were fetched. A column the API sends as an array of objects
+#'   comes back as a list column; [tg_fields()] describes what is inside it.
 #' @export
 #' @family queries
 #' @examples
 #' if (interactive()) {
-#'   tg_get("ted", "plano_acao", aa_ano_plano_acao = gte(2024), .limit = 50)
+#'   tg_get("parcerias", "proposta", sg_uf_recebedor = "PE", .limit = 50)
 #'
-#'   tg_get(
-#'     "fundoafundo", "plano_acao",
-#'     .select = c("id_plano_acao", "vl_total_plano_acao"),
-#'     .order = "vl_total_plano_acao.desc",
-#'     .limit = 10
-#'   )
+#'   tg_get("fundoafundo", "planos_acao", .limit = 10)
 #' }
 tg_get <- function(
   module,
   table,
   ...,
-  .select = NULL,
-  .order = NULL,
   .limit = 1000,
   .offset = 0,
-  .page_size = 1000,
-  .params = list(),
+  .page_size = NULL,
   .progress = NULL,
   .cache = NULL,
-  .base_url = tg_base_url()
+  .base_url = NULL
 ) {
   module <- .tg_match_module(module)
   table <- .tg_match_table(module, table)
   fields <- .tg_table_fields(module, table)
 
-  filters <- .tg_eval_filters(rlang::enquos(...))
-  .tg_validate_columns(names(filters), fields, "filter")
+  filters <- .tg_eval_filters(
+    rlang::enquos(...),
+    .tg_table_params(module, table)
+  )
 
   .tg_check_count(.limit, ".limit", allow_infinite = TRUE)
   .tg_check_count(.offset, ".offset", minimum = 0)
-  .tg_check_count(.page_size, ".page_size", maximum = 1000L)
-  .tg_check_params(.params)
-
-  select <- .tg_prepare_select(.select, fields)
-  order <- .tg_prepare_order(.order, fields, module, table)
-
-  query <- c(
-    filters,
-    if (!is.null(select)) list(select = paste(select, collapse = ",")),
-    list(order = paste(order, collapse = ",")),
-    .params
-  )
+  max_page_size <- .tg_schema[[module]]$max_page_size
+  .page_size <- .page_size %||% max_page_size
+  .tg_check_count(.page_size, ".page_size", maximum = max_page_size)
 
   collected <- .tg_collect(
     module = module,
     table = table,
-    query = query,
+    query = filters,
     limit = .limit,
     offset = .offset,
     page_size = .page_size,
     progress = .progress,
     cache = .cache,
-    base_url = .base_url
+    base_url = .tg_module_base_url(module, .base_url)
   )
 
-  result <- .tg_rows_to_tibble(
-    collected$rows,
-    fields,
-    columns = .tg_selected_names(.select)
-  )
+  result <- .tg_rows_to_tibble(collected$rows, fields)
 
-  .tg_attach_metadata(result, module, table, collected, order, select)
+  .tg_attach_metadata(result, module, table, collected, filters)
 }
 
 #' @rdname tg_get
@@ -144,62 +129,91 @@ tg_obter <- tg_get
 #'
 #' Asks the API for the number of rows matching a set of filters without
 #' retrieving them. Worth doing before a large [tg_get()]: the biggest table in
-#' these APIs holds over a million rows, which is more than a thousand requests.
+#' these APIs holds over a million rows, which at 200 rows a request is more
+#' than five thousand requests.
 #'
 #' @inheritParams tg_get
-#' @param ... Filters, named after the columns they apply to. See [tg_get()].
+#' @param ... Filters, named after the parameters they set. See [tg_get()].
 #'
 #' @return A single number.
 #' @export
 #' @family queries
 #' @examples
 #' if (interactive()) {
-#'   tg_count("ted", "plano_acao")
-#'   tg_count("ted", "plano_acao", aa_ano_plano_acao = 2024)
+#'   tg_count("parcerias", "proposta")
+#'   tg_count("parcerias", "proposta", situacao_proposta = "Aprovada")
 #' }
 tg_count <- function(
   module,
   table,
   ...,
-  .params = list(),
   .cache = NULL,
-  .base_url = tg_base_url()
+  .base_url = NULL
 ) {
   module <- .tg_match_module(module)
   table <- .tg_match_table(module, table)
-  fields <- .tg_table_fields(module, table)
 
-  filters <- .tg_eval_filters(rlang::enquos(...))
-  .tg_validate_columns(names(filters), fields, "filter")
-  .tg_check_params(.params)
-
-  # `select=` with no columns asks PostgREST for rows with no fields, so the
-  # count comes back without the body carrying any data.
-  query <- c(filters, list(select = "", limit = "1"), .params)
-
-  page <- .tg_fetch(module, table, query,
-    count = TRUE, cache = .cache,
-    base_url = .base_url
+  filters <- .tg_eval_filters(
+    rlang::enquos(...),
+    .tg_table_params(module, table)
   )
 
-  total <- page$range$total
+  # One row is the smallest page the service accepts, and the envelope reports
+  # the full total whatever the page size.
+  page <- .tg_fetch(
+    module, table,
+    c(filters, list(pagina = "1", tamanho_da_pagina = "1")),
+    cache = .cache,
+    base_url = .tg_module_base_url(module, .base_url)
+  )
 
-  if (is.na(total)) {
-    cli::cli_abort(
-      c(
-        "The API did not report a row count.",
-        "i" = "Its {.field Content-Range} header carried no total."
-      ),
-      class = "transferegovr_response_error"
-    )
-  }
-
-  total
+  page$total
 }
 
 #' @rdname tg_count
 #' @export
 tg_contar <- tg_count
+
+#' When a module's data was last refreshed
+#'
+#' Each module publishes the timestamp of its last load. It is the only
+#' freshness signal these APIs give: they send no `ETag`, `Cache-Control` or
+#' `Last-Modified` header.
+#'
+#' @inheritParams tg_get
+#'
+#' @return A `POSIXct` in UTC.
+#' @export
+#' @family discovery
+#' @examples
+#' if (interactive()) {
+#'   tg_updated_at("parcerias")
+#' }
+tg_updated_at <- function(module, .cache = NULL, .base_url = NULL) {
+  module <- .tg_match_module(module)
+
+  path <- paste0(module, "/", .tg_schema[[module]]$timestamp_path)
+  req <- .tg_request(path, list(), .tg_module_base_url(module, .base_url))
+  body <- .tg_perform_json(req)
+
+  value <- body$data_ultima_atualizacao
+
+  if (!is.character(value) || length(value) != 1L) {
+    cli::cli_abort(
+      c(
+        "The TransfereGov API reported no update timestamp.",
+        "i" = "Its response carried no {.field data_ultima_atualizacao}."
+      ),
+      class = "transferegovr_response_error"
+    )
+  }
+
+  .tg_as_datetime(value, "data_ultima_atualizacao")
+}
+
+#' @rdname tg_updated_at
+#' @export
+tg_atualizado_em <- tg_updated_at
 
 # Module shortcuts ------------------------------------------------------------
 
@@ -217,16 +231,17 @@ tg_contar <- tg_count
 #' @family queries
 #' @examples
 #' if (interactive()) {
-#'   tg_ted("plano_acao", .limit = 10)
-#'   tg_fundo_a_fundo("programa", .limit = 10)
-#'   tg_transferencias_especiais("programa_especial")
+#'   tg_parcerias("proposta", .limit = 10)
+#'   tg_fundo_a_fundo("programas", .limit = 10)
+#'   tg_especiais("programas_especiais", .limit = 10)
+#'   tg_ted("termos_execucao", .limit = 10)
 #' }
 NULL
 
 #' @rdname module_shortcuts
 #' @export
-tg_ted <- function(table, ...) {
-  tg_get("ted", table, ...)
+tg_parcerias <- function(table, ...) {
+  tg_get("parcerias", table, ...)
 }
 
 #' @rdname module_shortcuts
@@ -237,8 +252,14 @@ tg_fundo_a_fundo <- function(table, ...) {
 
 #' @rdname module_shortcuts
 #' @export
-tg_transferencias_especiais <- function(table, ...) {
-  tg_get("transferenciasespeciais", table, ...)
+tg_especiais <- function(table, ...) {
+  tg_get("especiais", table, ...)
+}
+
+#' @rdname module_shortcuts
+#' @export
+tg_ted <- function(table, ...) {
+  tg_get("ted", table, ...)
 }
 
 # Result metadata -------------------------------------------------------------
@@ -249,8 +270,8 @@ tg_transferencias_especiais <- function(table, ...) {
 #'
 #' @return A list holding the module and table queried, the total number of
 #'   matching rows the API reported, how many rows and pages were retrieved, the
-#'   offset, page size, order and selection used, and when the query ran.
-#'   `NULL` for any other object.
+#'   offset, page size and filters used, and when the query ran. `NULL` for any
+#'   other object.
 #' @export
 #' @family queries
 #' @examples
@@ -263,8 +284,7 @@ tg_metadata <- function(x) {
 #' @export
 tg_metadados <- tg_metadata
 
-.tg_attach_metadata <- function(result, module, table, collected, order,
-                                select) {
+.tg_attach_metadata <- function(result, module, table, collected, filters) {
   attr(result, "transferegovr_metadata") <- list(
     module = module,
     table = table,
@@ -273,8 +293,7 @@ tg_metadados <- tg_metadata
     pages = collected$pages,
     offset = collected$offset,
     page_size = collected$page_size,
-    order = order,
-    select = select,
+    filters = filters,
     cached = collected$cached,
     retrieved_at = Sys.time()
   )
@@ -284,60 +303,55 @@ tg_metadados <- tg_metadata
 
 # Collection ------------------------------------------------------------------
 
+# Pagination is by page number, so an offset that is not a whole number of
+# pages is met by fetching the page it falls in and dropping the rows before
+# it. That keeps `.offset` meaning "rows to skip" whatever `.page_size` is.
 .tg_collect <- function(
   module, table, query, limit, offset, page_size, progress, cache, base_url
 ) {
   page_size <- as.integer(page_size)
   offset <- as.numeric(offset)
 
-  first_size <- if (is.finite(limit)) min(page_size, limit) else page_size
+  first_page <- floor(offset / page_size) + 1
+  drop <- offset %% page_size
 
   first <- .tg_fetch(
     module, table,
-    c(query, list(
-      limit = format(first_size, scientific = FALSE),
-      offset = format(offset, scientific = FALSE)
-    )),
-    count = TRUE, cache = cache, base_url = base_url
+    c(query, .tg_page_query(first_page, page_size)),
+    cache = cache, base_url = base_url
   )
 
-  rows <- first$rows
-  total <- first$range$total
+  total <- first$total
   cached <- first$cached
   pages <- 1L
 
+  rows <- if (drop > 0L) utils::tail(first$rows, -drop) else first$rows
   wanted <- .tg_rows_wanted(limit, total, offset)
 
-  if (length(rows) >= wanted) {
-    return(.tg_collected(rows, total, pages, offset, page_size, cached, wanted))
-  }
-
-  # A first page that comes back empty while the API reports matching rows means
-  # the offset is past the end, not that collection should continue.
-  if (length(rows) == 0L) {
+  if (length(rows) >= wanted || length(first$rows) == 0L) {
+    rows <- utils::head(rows, if (is.finite(wanted)) wanted else length(rows))
     return(.tg_collected(rows, total, pages, offset, page_size, cached, wanted))
   }
 
   remaining_pages <- ceiling((wanted - length(rows)) / page_size)
   bar <- .tg_progress_start(progress, remaining_pages, module, table)
 
+  page_number <- first_page
+
   while (length(rows) < wanted) {
-    size <- min(page_size, wanted - length(rows))
+    page_number <- page_number + 1
 
     page <- .tg_fetch(
       module, table,
-      c(query, list(
-        limit = format(size, scientific = FALSE),
-        offset = format(offset + length(rows), scientific = FALSE)
-      )),
-      count = FALSE, cache = cache, base_url = base_url
+      c(query, .tg_page_query(page_number, page_size)),
+      cache = cache, base_url = base_url
     )
 
     cached <- cached && page$cached
     pages <- pages + 1L
 
-    # The server stops sending rows before the reported total is reached only if
-    # the table shrank mid-collection. Breaking here keeps the loop finite.
+    # The server stops sending rows before the reported total is reached only
+    # if the table shrank mid-collection. Breaking here keeps the loop finite.
     if (length(page$rows) == 0L) {
       break
     }
@@ -348,7 +362,16 @@ tg_metadados <- tg_metadata
 
   .tg_progress_done(bar)
 
+  rows <- utils::head(rows, if (is.finite(wanted)) wanted else length(rows))
+
   .tg_collected(rows, total, pages, offset, page_size, cached, wanted)
+}
+
+.tg_page_query <- function(page, page_size) {
+  list(
+    pagina = format(page, scientific = FALSE),
+    tamanho_da_pagina = format(page_size, scientific = FALSE)
+  )
 }
 
 .tg_collected <- function(rows, total, pages, offset, page_size, cached,
@@ -384,8 +407,16 @@ tg_metadados <- tg_metadata
   min(limit, max(0, total - offset))
 }
 
-.tg_fetch <- function(module, table, query, count, cache, base_url) {
-  req <- .tg_request(module, table, query, count = count, base_url = base_url)
+.tg_module_base_url <- function(module, base_url) {
+  base_url %||% getOption(
+    "transferegovr.base_url",
+    .tg_schema[[module]]$base_url
+  )
+}
+
+.tg_fetch <- function(module, table, query, cache, base_url) {
+  path <- paste0(module, "/", .tg_schema[[module]]$tables[[table]]$path)
+  req <- .tg_request(path, query, base_url = base_url)
 
   use_cache <- cache %||% .tg_cache_enabled()
   if (!is.logical(use_cache) || length(use_cache) != 1L || is.na(use_cache)) {
@@ -427,86 +458,6 @@ tg_metadados <- tg_metadata
   validate
 }
 
-.tg_validate_columns <- function(columns, fields, what,
-                                 call = rlang::caller_env()) {
-  if (length(columns) == 0L || !.tg_validate()) {
-    return(invisible(NULL))
-  }
-
-  unknown <- setdiff(unique(columns), fields$field)
-
-  if (length(unknown) == 0L) {
-    return(invisible(NULL))
-  }
-
-  cli::cli_abort(
-    c(
-      "Unknown {what} column{?s}: {.val {unknown}}.",
-      "i" = "See {.fn tg_fields} for the columns this table publishes.",
-      "i" = "The packaged schema is from {.val {format(tg_schema_date())}}. If
-             the API has gained a column since, set
-             {.code options(transferegovr.validate = FALSE)}."
-    ),
-    class = "transferegovr_schema_error",
-    call = call
-  )
-}
-
-.tg_prepare_select <- function(select, fields, call = rlang::caller_env()) {
-  if (is.null(select)) {
-    return(NULL)
-  }
-
-  if (!is.character(select) || length(select) == 0L || anyNA(select)) {
-    cli::cli_abort(
-      "{.arg .select} must be a character vector of column names.",
-      class = "transferegovr_schema_error",
-      call = call
-    )
-  }
-
-  .tg_validate_columns(.tg_selected_names(select), fields, "selected", call)
-
-  select
-}
-
-# A selection entry may carry PostgREST syntax, `alias:column` for renaming or
-# `column::type` for casting. Only the bare entries name a column that can be
-# checked against the schema or used to shape an empty result.
-.tg_selected_names <- function(select) {
-  if (is.null(select)) {
-    return(NULL)
-  }
-
-  if (any(grepl("[:()]", select))) {
-    return(NULL)
-  }
-
-  select
-}
-
-.tg_prepare_order <- function(order, fields, module, table,
-                              call = rlang::caller_env()) {
-  if (is.null(order)) {
-    return(.tg_default_order(module, table))
-  }
-
-  if (!is.character(order) || length(order) == 0L || anyNA(order)) {
-    cli::cli_abort(
-      "{.arg .order} must be a character vector of column names.",
-      class = "transferegovr_schema_error",
-      call = call
-    )
-  }
-
-  columns <- sub("\\.(asc|desc)(\\.(nullsfirst|nullslast))?$", "", order)
-  columns <- sub("\\.(nullsfirst|nullslast)$", "", columns)
-
-  .tg_validate_columns(columns, fields, "ordering", call)
-
-  order
-}
-
 .tg_check_count <- function(value, argument, minimum = 1, maximum = Inf,
                             allow_infinite = FALSE,
                             call = rlang::caller_env()) {
@@ -522,54 +473,16 @@ tg_metadados <- tg_metadata
     )
 
   if (!valid) {
-    bound <- if (is.finite(maximum)) {
-      " no greater than {maximum}"
+    range <- if (is.finite(maximum)) {
+      "between {minimum} and {maximum}"
     } else {
-      ""
+      "of {minimum} or more"
     }
-    infinite <- if (allow_infinite) " or {.code Inf}" else ""
+    infinite <- if (allow_infinite) ", or {.code Inf}" else ""
 
     cli::cli_abort(
       paste0(
-        "{.arg ", argument, "} must be a whole number from {minimum}",
-        bound, infinite, "."
-      ),
-      call = call
-    )
-  }
-
-  invisible(NULL)
-}
-
-.tg_check_params <- function(params, call = rlang::caller_env()) {
-  if (length(params) == 0L) {
-    return(invisible(NULL))
-  }
-
-  names <- names(params)
-  valid <- is.list(params) &&
-    !is.null(names) &&
-    all(nzchar(names)) &&
-    all(vapply(
-      params,
-      function(p) length(p) == 1L && !is.list(p) && !is.na(p),
-      logical(1)
-    ))
-
-  if (!valid) {
-    cli::cli_abort(
-      "{.arg .params} must be a named list of single values.",
-      call = call
-    )
-  }
-
-  reserved <- intersect(names, c("limit", "offset"))
-  if (length(reserved) > 0L) {
-    cli::cli_abort(
-      c(
-        "{.arg .params} must not set {.val {reserved}}.",
-        "i" = "Use {.arg .limit} and {.arg .offset}, which pagination depends
-               on."
+        "{.arg ", argument, "} must be a whole number ", range, infinite, "."
       ),
       call = call
     )

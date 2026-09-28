@@ -12,8 +12,8 @@ test_that("a repeated request is served from the cache", {
   local_cache()
   recorded <- local_recorded_requests(mock_page(2, total = 2))
 
-  first <- tg_get("ted", "plano_acao", .limit = 2)
-  second <- tg_get("ted", "plano_acao", .limit = 2)
+  first <- tg_get("parcerias", "parceria", .limit = 2)
+  second <- tg_get("parcerias", "parceria", .limit = 2)
 
   expect_length(recorded$requests, 1L)
   expect_equal(first, second, ignore_attr = TRUE)
@@ -27,8 +27,8 @@ test_that("a different query is a different cache entry", {
     mock_page(1, total = 1), mock_page(1, total = 1)
   ))
 
-  tg_get("ted", "plano_acao", .limit = 1)
-  tg_get("ted", "plano_acao", aa_ano_plano_acao = 2024, .limit = 1)
+  tg_get("parcerias", "parceria", .limit = 1)
+  tg_get("parcerias", "parceria", in_situacao_parceria = "Aprovada", .limit = 1)
 
   expect_length(recorded$requests, 2L)
 })
@@ -39,8 +39,8 @@ test_that("the cache is skipped when it is turned off", {
     mock_page(1, total = 1), mock_page(1, total = 1)
   ))
 
-  tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE)
-  tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE)
+  tg_get("parcerias", "parceria", .limit = 1, .cache = FALSE)
+  tg_get("parcerias", "parceria", .limit = 1, .cache = FALSE)
 
   expect_length(recorded$requests, 2L)
 })
@@ -50,8 +50,8 @@ test_that("the .cache argument overrides the option", {
   withr::local_options(transferegovr.cache = FALSE)
   recorded <- local_recorded_requests(mock_page(1, total = 1))
 
-  tg_get("ted", "plano_acao", .limit = 1, .cache = TRUE)
-  tg_get("ted", "plano_acao", .limit = 1, .cache = TRUE)
+  tg_get("parcerias", "parceria", .limit = 1, .cache = TRUE)
+  tg_get("parcerias", "parceria", .limit = 1, .cache = TRUE)
 
   expect_length(recorded$requests, 1L)
 })
@@ -63,9 +63,9 @@ test_that("an entry past its time to live is refetched", {
     mock_page(1, total = 1), mock_page(1, total = 1)
   ))
 
-  tg_get("ted", "plano_acao", .limit = 1)
+  tg_get("parcerias", "parceria", .limit = 1)
   Sys.sleep(0.01)
-  tg_get("ted", "plano_acao", .limit = 1)
+  tg_get("parcerias", "parceria", .limit = 1)
 
   expect_length(recorded$requests, 2L)
 })
@@ -76,11 +76,11 @@ test_that("a corrupt cache file is a miss, not a failure", {
     mock_page(1, total = 1), mock_page(1, total = 1)
   ))
 
-  tg_get("ted", "plano_acao", .limit = 1)
+  tg_get("parcerias", "parceria", .limit = 1)
   file <- list.files(dir, pattern = "\\.rds$", full.names = TRUE)
   writeBin(as.raw(c(1, 2, 3)), file[[1]])
 
-  expect_no_error(tg_get("ted", "plano_acao", .limit = 1))
+  expect_no_error(tg_get("parcerias", "parceria", .limit = 1))
   expect_length(recorded$requests, 2L)
 })
 
@@ -90,11 +90,11 @@ test_that("a cache entry missing its fields is a miss", {
     mock_page(1, total = 1), mock_page(1, total = 1)
   ))
 
-  tg_get("ted", "plano_acao", .limit = 1)
+  tg_get("parcerias", "parceria", .limit = 1)
   file <- list.files(dir, pattern = "\\.rds$", full.names = TRUE)
   saveRDS(list(created = Sys.time()), file[[1]])
 
-  expect_no_error(tg_get("ted", "plano_acao", .limit = 1))
+  expect_no_error(tg_get("parcerias", "parceria", .limit = 1))
   expect_length(recorded$requests, 2L)
 })
 
@@ -104,13 +104,13 @@ test_that("an entry stamped in the future is a miss", {
     mock_page(1, total = 1), mock_page(1, total = 1)
   ))
 
-  tg_get("ted", "plano_acao", .limit = 1)
+  tg_get("parcerias", "parceria", .limit = 1)
   file <- list.files(dir, pattern = "\\.rds$", full.names = TRUE)
   entry <- readRDS(file[[1]])
   entry$created <- Sys.time() + 86400
   saveRDS(entry, file[[1]])
 
-  tg_get("ted", "plano_acao", .limit = 1)
+  tg_get("parcerias", "parceria", .limit = 1)
   expect_length(recorded$requests, 2L)
 })
 
@@ -118,7 +118,7 @@ test_that("tg_cache_clear() empties the directory", {
   dir <- local_cache()
   local_recorded_requests(mock_page(1, total = 1))
 
-  tg_get("ted", "plano_acao", .limit = 1)
+  tg_get("parcerias", "parceria", .limit = 1)
   expect_length(list.files(dir, pattern = "\\.rds$"), 1L)
 
   expect_message(removed <- tg_cache_clear())
@@ -179,18 +179,18 @@ test_that("malformed cache options are rejected", {
 })
 
 test_that(".cache must be TRUE or FALSE", {
-  expect_error(tg_get("ted", "plano_acao", .limit = 1, .cache = "yes"))
+  expect_error(tg_get("parcerias", "parceria", .limit = 1, .cache = "yes"))
 })
 
 test_that("a cached multi-page collection reports itself as cached", {
   local_cache()
   local_recorded_requests(list(
-    mock_page(2, from = 1, total = 4),
-    mock_page(2, from = 3, total = 4, first = 2)
+    mock_page(2, from = 1, total = 4, page = 1, page_size = 2),
+    mock_page(2, from = 3, total = 4, page = 2, page_size = 2)
   ))
 
   args <- list(
-    "ted", "plano_acao",
+    "parcerias", "parceria",
     .limit = 4, .page_size = 2, .progress = FALSE
   )
   first <- do.call(tg_get, args)
@@ -198,5 +198,5 @@ test_that("a cached multi-page collection reports itself as cached", {
 
   expect_false(tg_metadata(first)$cached)
   expect_true(tg_metadata(second)$cached)
-  expect_equal(first$id_plano_acao, second$id_plano_acao)
+  expect_equal(first$id_parceria, second$id_parceria)
 })

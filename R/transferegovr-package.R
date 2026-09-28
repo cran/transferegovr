@@ -8,5 +8,6 @@ NULL
 
 # Silences the R CMD check note for objects loaded from sysdata.rda.
 utils::globalVariables(c(
-  ".tg_schema", ".tg_module_labels", ".tg_module_aliases", ".tg_schema_built_at"
+  ".tg_schema", ".tg_module_labels", ".tg_module_aliases",
+  ".tg_schema_built_at"
 ))

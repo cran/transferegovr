@@ -11,227 +11,262 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-TransfereGov publishes three open data APIs, covering forty-eight tables between
-them. This vignette shows how to find your way around them and retrieve data
-without downloading more than you meant to.
+TransfereGov publishes four open data APIs on
+`api-publica.transferegov.gestao.gov.br`, covering seventy-four tables and about
+7.5 million rows between them. This vignette shows how to find your way around
+them and retrieve data without downloading more than you meant to.
 
 The code here is not run when the vignette is built, because it would call the
 government's servers.
 
-```{r setup}
+```{r}
 library(transferegovr)
 ```
 
-## The three modules
+## The four modules
 
 ```{r}
 tg_modules()
-#> # A tibble: 3 × 4
-#>   module                  label                      tables url
-#>   <chr>                   <chr>                       <int> <chr>
-#> 1 transferenciasespeciais Special transfers              14 https://api.tran…
-#> 2 fundoafundo             Fund-to-fund transfers         21 https://api.tran…
-#> 3 ted                     Decentralized credit (TED)     13 https://api.tran…
+#> # A tibble: 4 × 5
+#>   module      label                  tables max_page_size url
+#>   <chr>       <chr>                   <int>         <int> <chr>
+#> 1 especiais   Special transfers          23           200 https://api-publ…
+#> 2 fundoafundo Fund-to-fund transfers     20          1000 https://api-publ…
+#> 3 parcerias   Partnerships               17           200 https://api-publ…
+#> 4 ted         Decentralized credit       14          1000 https://api-publ…
 ```
 
-* **Special transfers** are the modality created by Constitutional Amendment
-  105/2019, through which individual parliamentary amendments are transferred
-  directly to states, the Federal District and municipalities.
-* **Fund-to-fund transfers** move money from a federal fund straight into a
-  state, district or municipal fund, under the terms of specific legislation.
-* **TED**, *termo de execução descentralizada*, is how budget credit is
-  decentralized between federal bodies.
+`especiais` covers **special transfers**, the mechanism created by
+Constitutional Amendment 105/2019 that lets an individual parliamentary
+amendment send money straight to a municipality's account, with no agreement to
+sign. `fundoafundo` covers **fund-to-fund transfers**, from a federal fund to a
+state or municipal one — health, social assistance, education. `parcerias`
+covers **partnerships** with civil society organizations, from the program
+that announces them through to the bank statement of the account they are paid
+from. `ted` covers **decentralized credit**, the *termos de execução
+descentralizada* through which one federal body passes budget to another to
+carry out a program on its behalf.
 
-Module names may be written with underscores, so `"fundo_a_fundo"` and
-`"transferencias_especiais"` both work.
+What is *not* here: SICONV agreement data, which is published as CSV downloads
+rather than as an API.
 
 ## Finding a table
 
 ```{r}
-tg_tables("ted")
-#> # A tibble: 13 × 5
-#>   module table                      columns primary_key description
-#>   <chr>  <chr>                        <int> <chr>       <chr>
-#> 1 ted    evento                          10 NA          …
-#> 2 ted    nota_credito                    11 NA          …
-#> 3 ted    plano_acao                      20 NA          …
-#> …
+tg_tables("parcerias")
+#> # A tibble: 17 × 6
+#>    module    table                 path                  columns params
+#>    <chr>     <chr>                 <chr>                   <int>  <int>
+#>  1 parcerias analise_proposta      analise-proposta            7      5
+#>  2 parcerias beneficiario_emenda_… beneficiario_emenda_…      16     14
+#>  3 parcerias cronograma_desembolso cronograma-desembolso       7      7
+#>  …
 ```
 
-Five table names appear in more than one module — `programa`, `plano_acao`,
-`plano_acao_meta`, `plano_acao_analise` and `programa_beneficiario` — with
-different columns in each. The module is always part of the address.
+`table` is the name to pass to `tg_get()`; `path` is the endpoint it maps to.
+The two differ wherever the endpoint uses a hyphen, and either spelling is
+accepted.
 
-## Finding a column
+`tg_fields()` describes the columns, and `tg_params()` the filters:
 
 ```{r}
-tg_fields("ted", "plano_acao")
-#> # A tibble: 20 × 5
-#>   field                 r_type    pg_type           primary_key description
-#>   <chr>                 <chr>     <chr>             <lgl>       <chr>
-#> 1 id_plano_acao         double    bigint            FALSE       Identifica…
-#> 2 id_programa           double    bigint            FALSE       Identifica…
-#> 3 sigla_unidade_descen… character character varyi… FALSE       Sigla da U…
-#> …
+tg_fields("parcerias", "proposta")
+#> # A tibble: 43 × 5
+#>    field               r_type    api_type nested description
+#>    <chr>               <chr>     <chr>    <chr>  <chr>
+#>  1 id_proposta         double    integer  NA     Identificador único da prop…
+#>  2 id_programa         double    integer  NA     Identificador do programa a…
+#>  …
+
+tg_params("parcerias", "proposta")
 ```
 
-Every column listed can be filtered on, selected, and ordered by. `r_type` is
-the R type the package coerces the column to, taken from the Postgres type in
-`pg_type`.
+These two are not the same set. A column is what comes back; a parameter is what
+you can filter on. Most columns are both, but not all.
 
-Column names, table names and categorical values are in Portuguese because they
-belong to the API. The package's own interface is in English.
+Both work offline: the schema is frozen into the package from the APIs' own
+OpenAPI documents. `tg_schema_date()` reports when.
 
 ## Retrieving rows
 
+Each filter is named after a parameter, and parameters combine with AND:
+
 ```{r}
-tg_get("ted", "plano_acao", .limit = 5)
+propostas <- tg_get(
+  "parcerias", "proposta",
+  sg_uf_recebedor = "PE",
+  situacao_proposta = "Aprovada",
+  .limit = 100
+)
 ```
 
-Filters are named after the columns they apply to. A bare value means "equals":
+That is almost the entire filtering vocabulary. These services compare for
+equality — there is no greater-than and no pattern match — and they publish no
+ordering or column-selection parameter.
+
+The exception is on identifiers. Some parameters take several values in one
+request and match any of them. `tg_params()` marks them as `multiple`, with the
+most each accepts — 100 in `especiais`, 200 elsewhere:
 
 ```{r}
-tg_get("ted", "plano_acao", aa_ano_plano_acao = 2024)
+params <- tg_params("parcerias", "parceria")
+params[params$multiple, c("param", "max_values")]
+#> # A tibble: 2 × 2
+#>   param       max_values
+#>   <chr>            <int>
+#> 1 id_parceria        200
+#> 2 id_proposta        200
+
+tg_get("parcerias", "parceria", id_proposta = c(1, 2))
 ```
 
-A bare vector means "is one of":
+The OpenAPI documents do not say which parameters these are, and the names do
+not either, so the package asked the service when it froze the schema.
+
+For any other parameter, query each value and bind:
 
 ```{r}
-tg_get("ted", "plano_acao", aa_ano_plano_acao = c(2024, 2025))
+library(purrr)
+
+nordeste <- c("PE", "PB", "AL", "RN", "CE", "SE", "BA", "PI", "MA")
+
+propostas <- list_rbind(map(
+  nordeste,
+  \(uf) tg_get("parcerias", "proposta", sg_uf_recebedor = uf, .limit = Inf)
+))
 ```
 
-Anything else comes from `tg_operators()`:
+### Enumerated parameters
+
+Many parameters accept only a fixed set of values, and the package knows which:
 
 ```{r}
-tg_operators()
-#> # A tibble: 15 × 3
-#>   operator postgrest meaning
-#>   <chr>    <chr>     <chr>
-#> 1 eq       eq        equals
-#> 2 neq      neq       does not equal
-#> 3 gt       gt        greater than
+params <- tg_params("parcerias", "proposta")
+params[lengths(params$values) > 0, c("param", "values")]
+#> # A tibble: 5 × 2
+#>   param                  values
+#>   <chr>                  <list>
+#> 1 sg_uf_recebedor        <chr [27]>
+#> 2 situacao_proposta      <chr [5]>
+#> 3 in_situacao_analise    <chr [4]>
 #> …
+
+params$values[[match("situacao_proposta", params$param)]]
+#> [1] "Em Análise"    "Rejeitada"     "Aprovada"      "Em Elaboração"
+#> [5] "Inativada"
 ```
+
+A value outside the set fails before the request is made:
 
 ```{r}
-tg_get(
-  "ted", "plano_acao",
-  aa_ano_plano_acao = gte(2024),
-  tx_objeto_plano_acao = ilike("*pesquisa*"),
-  tx_justificativa_plano_acao = not(is_null())
-)
+tg_count("parcerias", "proposta", situacao_proposta = "Aprovado")
+#> Error in `tg_count()`:
+#> ! "Aprovado" is not a permitted value for `situacao_proposta`.
+#> ℹ Did you mean "Aprovada"?
+#> ℹ It accepts "Em Análise", "Rejeitada", "Aprovada", "Em Elaboração", and
+#>   "Inativada".
 ```
 
-Two conditions on the same column go in a list, and the API combines them with
-AND:
+## Why parameter names are checked
+
+This is the one thing worth internalizing about these APIs.
+
+**They ignore a query parameter they do not recognize.** No warning, no 400 —
+the request succeeds and returns the unfiltered table. The parameter on
+`/proposta` is `situacao_proposta`; write `in_situacao_proposta`, which is what
+the sibling `/parceria` endpoint calls its own version, and you get every one of
+the 89,415 proposals instead of the 85,041 that are approved. Nothing in the
+response says so.
+
+So the package refuses to send a name the frozen schema does not know:
 
 ```{r}
-tg_get(
-  "ted", "plano_acao",
-  dt_inicio_vigencia = list(gte("2024-01-01"), lt("2025-01-01"))
-)
+tg_count("parcerias", "proposta", in_situacao_proposta = "Aprovada")
+#> Error in `tg_count()`:
+#> ! Unknown filter: "in_situacao_proposta".
+#> ✖ The API ignores a parameter it does not recognize and returns every row, so
+#>   this would look like a query that matched nothing in particular.
+#> ℹ Did you mean "situacao_proposta"?
 ```
 
-`Date` and `POSIXct` values are formatted for you, so this is equivalent:
+If the API gains a parameter after the packaged schema was built, turn the check
+off with `options(transferegovr.validate = FALSE)` — and know what you are
+trading away.
 
-```{r}
-tg_get(
-  "ted", "plano_acao",
-  dt_inicio_vigencia = list(
-    gte(as.Date("2024-01-01")), lt(as.Date("2025-01-01"))
-  )
-)
-```
-
-## Selecting and ordering
-
-Selecting fewer columns makes a large query markedly faster, because the service
-does less work and sends less over the wire.
-
-```{r}
-tg_get(
-  "ted", "plano_acao",
-  .select = c("id_plano_acao", "vl_total_plano_acao", "dt_inicio_vigencia"),
-  .order = "vl_total_plano_acao.desc",
-  .limit = 10
-)
-```
-
-`.order` accepts several columns, each optionally suffixed with `.asc` or
-`.desc`, and with `.nullsfirst` or `.nullslast`:
-
-```{r}
-tg_get(
-  "ted", "plano_acao",
-  .order = c("aa_ano_plano_acao.desc", "vl_total_plano_acao.desc.nullslast")
-)
-```
-
-## How big is it?
-
-Ask before you fetch. `tg_count()` returns the number of matching rows without
-retrieving any of them:
-
-```{r}
-tg_count("ted", "plano_acao")
-#> [1] 6176
-
-tg_count("fundoafundo", "gestao_financeira_lancamentos")
-#> [1] 1115444
-```
-
-The second of those is over a million rows. At 1000 rows per request — the
-service's cap, whatever you ask for — that is more than a thousand requests. The
-pagination vignette covers how to approach a table that size.
+For the same reason a repeated parameter is refused rather than sent: these
+services keep the last occurrence and discard the rest silently, so
+`sg_uf_recebedor = "PE", sg_uf_recebedor = "PB"` would quietly mean `"PB"`.
 
 ## Types
 
-Columns are typed from the schema the API publishes, not inferred from the
-values that happened to arrive:
+Columns are typed from the frozen schema rather than inferred from the values,
+so a column that happens to be entirely null on one page does not come back
+logical while the next page returns it as character.
 
 ```{r}
-plans <- tg_get("ted", "plano_acao", .limit = 5)
+propostas <- tg_get("parcerias", "proposta", .limit = 5)
 
-class(plans$dt_inicio_vigencia)
+class(propostas$dt_proposta)
 #> [1] "Date"
-class(plans$in_forma_execucao_direta)
-#> [1] "logical"
-class(plans$aa_ano_plano_acao)
-#> [1] "integer"
+class(propostas$vl_total_planejamento_gastos)
+#> [1] "numeric"
 ```
 
-This matters across pages: a column that is entirely null on one page would be
-inferred as logical there and as character on the next. Typing from the schema
-keeps it stable. It also holds for an empty result, which still carries the
-table's full set of columns with their proper types.
+Integers are returned as double. These documents declare no `format`, so int32
+and int64 cannot be told apart, and identifiers here genuinely exceed
+`.Machine$integer.max` — `cd_parceria` reaches 202500037062, which as an integer
+would be `NA`.
 
-Identifier columns declared as `bigint` come back as `double` rather than
-`integer`, because a value beyond `.Machine$integer.max` would become `NA` as an
-integer.
+### List columns
 
-## What you asked for and what you got
+Some tables have no endpoint of their own: the API folds them into their parent
+as an array. Those arrive as list columns.
 
 ```{r}
-plans <- tg_get("ted", "plano_acao", .limit = 2500)
+programas <- tg_get("parcerias", "programa", .limit = 20)
 
-tg_metadata(plans)
-#> $module
-#> [1] "ted"
-#> $table
-#> [1] "plano_acao"
-#> $total_rows
-#> [1] 6176
-#> $rows_returned
-#> [1] 2500
-#> $pages
-#> [1] 3
-#> …
+fields <- tg_fields("parcerias", "programa")
+fields$field[!is.na(fields$nested)]
+#> [1] "ufs_habilitadas"      "programa_atende_a"    "categorias_despesa"
+#> [4] "resultados_esperados" "indicadores_programa"
+
+tg_fields("parcerias", "programa", nested = "ufs_habilitadas")
+#> # A tibble: 3 × 5
+#>   field   r_type    api_type nested description
+#>   <chr>   <chr>     <chr>    <chr>  <chr>
+#> 1 nm_uf   character string   NA     NA
+#> 2 sg_uf   character string   NA     NA
+#> 3 cd_ibge double    integer  NA     NA
 ```
 
-`total_rows` is what the API said matched; `rows_returned` is what you have.
-Keeping both is what makes a partial download recognizable as one.
+To flatten one:
 
-## Where to next
+```{r}
+library(dplyr)
+library(tidyr)
 
-* `vignette("pagination")` — collecting large tables safely.
-* `vignette("joining-tables")` — putting the tables back together.
+programas |>
+  select(id_programa, ufs_habilitadas) |>
+  unnest_longer(ufs_habilitadas) |>
+  unnest_wider(ufs_habilitadas)
+```
+
+There are 5 such columns in `fundoafundo` and 13 in `parcerias`; `especiais` has
+none.
+
+## How fresh is the data
+
+Each module reports when it was last loaded. It is the only freshness signal
+these APIs give — they send no `ETag`, `Cache-Control` or `Last-Modified`
+header, which is also why the package caches responses itself rather than
+relying on HTTP caching.
+
+```{r}
+tg_updated_at("parcerias")
+#> [1] "2026-08-03 UTC"
+```
+
+## Where to go next
+
+* `vignette("pagination")` — collecting a large table without losing rows.
+* `vignette("joining-tables")` — how the tables fit together.

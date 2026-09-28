@@ -1,12 +1,15 @@
 # JSON to tibble --------------------------------------------------------------
 #
-# PostgREST answers with a flat array of objects, one per row, with a JSON
-# `null` wherever the column is NULL. Columns are typed from the frozen schema
-# rather than guessed, so a column made entirely of nulls on one page does not
-# come back logical while the next page returns it as character.
+# The services answer with an array of objects under `data`, one per row, with
+# a JSON `null` wherever the column is NULL. Columns are typed from the frozen
+# schema rather than guessed, so a column made entirely of nulls on one page
+# does not come back logical while the next page returns it as character.
+#
+# A few columns hold an array of objects rather than a scalar. They become list
+# columns; `tg_fields(nested = )` describes what is inside.
 
-.tg_rows_to_tibble <- function(rows, fields, columns = NULL) {
-  names <- columns %||% .tg_row_names(rows) %||% fields$field
+.tg_rows_to_tibble <- function(rows, fields) {
+  names <- .tg_row_names(rows) %||% fields$field
 
   if (length(names) == 0L) {
     return(tibble::tibble())
@@ -50,8 +53,16 @@
 }
 
 .tg_coerce <- function(values, type, name) {
-  # A JSON object or array in a column: keep it whole in a list-column rather
-  # than flatten it into something that no longer round-trips.
+  # A column the schema declares as an array stays a list column even when
+  # every row happens to hold an empty one, so its class does not depend on
+  # which page was fetched.
+  if (identical(type, "list")) {
+    return(lapply(values, function(v) if (is.null(v)) list() else v))
+  }
+
+  # A JSON object or array in a column the schema did not declare as one: keep
+  # it whole in a list column rather than flatten it into something that no
+  # longer round-trips.
   nested <- vapply(values, function(v) is.list(v) && length(v) > 0L, logical(1))
   if (any(nested)) {
     return(lapply(values, function(v) if (is.null(v)) NA else v))
@@ -79,7 +90,7 @@
   switch(type,
     logical = .tg_as_logical(values, missing),
     integer = .tg_as_integer(flat, name),
-    double = suppressWarnings(as.numeric(flat)),
+    double = .tg_as_double(flat, name),
     Date = .tg_as_date(flat, name),
     POSIXct = .tg_as_datetime(flat, name),
     flat
@@ -121,12 +132,33 @@
   out
 }
 
+# `as.numeric()` turns anything it cannot parse into NA with a warning that is
+# easy to miss, which would empty a column rather than report it. That is not
+# hypothetical here: the API declares
+# `codigo_conta_beneficiario_subtransacao_gestao_financeira` as an integer and
+# then sends "***" in it, a masked account number. Left unchecked the column
+# comes back all NA and reads as "the API has no value", which is wrong.
+.tg_as_double <- function(flat, name) {
+  parsed <- suppressWarnings(as.numeric(flat))
+
+  if (any(is.na(parsed) & !is.na(flat))) {
+    return(.tg_warn_unparsed(flat, name, "numeric"))
+  }
+
+  parsed
+}
+
 # `as.integer()` turns anything beyond .Machine$integer.max into NA with a
 # warning that is easy to miss, which would quietly empty an identifier column.
 # The schema types those columns as double, so reaching this branch means the
 # API sent something wider than it declared.
 .tg_as_integer <- function(flat, name) {
   numeric <- suppressWarnings(as.numeric(flat))
+
+  if (any(is.na(numeric) & !is.na(flat))) {
+    return(.tg_warn_unparsed(flat, name, "numeric"))
+  }
+
   present <- !is.na(numeric)
   overflow <- present & abs(numeric) > .Machine$integer.max
 

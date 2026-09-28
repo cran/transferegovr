@@ -1,123 +1,134 @@
 ## ----include = FALSE----------------------------------------------------------
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 
-## ----setup--------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 # library(transferegovr)
 
 ## -----------------------------------------------------------------------------
 # tg_modules()
-# #> # A tibble: 3 × 4
-# #>   module                  label                      tables url
-# #>   <chr>                   <chr>                       <int> <chr>
-# #> 1 transferenciasespeciais Special transfers              14 https://api.tran…
-# #> 2 fundoafundo             Fund-to-fund transfers         21 https://api.tran…
-# #> 3 ted                     Decentralized credit (TED)     13 https://api.tran…
+# #> # A tibble: 4 × 5
+# #>   module      label                  tables max_page_size url
+# #>   <chr>       <chr>                   <int>         <int> <chr>
+# #> 1 especiais   Special transfers          23           200 https://api-publ…
+# #> 2 fundoafundo Fund-to-fund transfers     20          1000 https://api-publ…
+# #> 3 parcerias   Partnerships               17           200 https://api-publ…
+# #> 4 ted         Decentralized credit       14          1000 https://api-publ…
 
 ## -----------------------------------------------------------------------------
-# tg_tables("ted")
-# #> # A tibble: 13 × 5
-# #>   module table                      columns primary_key description
-# #>   <chr>  <chr>                        <int> <chr>       <chr>
-# #> 1 ted    evento                          10 NA          …
-# #> 2 ted    nota_credito                    11 NA          …
-# #> 3 ted    plano_acao                      20 NA          …
-# #> …
+# tg_tables("parcerias")
+# #> # A tibble: 17 × 6
+# #>    module    table                 path                  columns params
+# #>    <chr>     <chr>                 <chr>                   <int>  <int>
+# #>  1 parcerias analise_proposta      analise-proposta            7      5
+# #>  2 parcerias beneficiario_emenda_… beneficiario_emenda_…      16     14
+# #>  3 parcerias cronograma_desembolso cronograma-desembolso       7      7
+# #>  …
 
 ## -----------------------------------------------------------------------------
-# tg_fields("ted", "plano_acao")
-# #> # A tibble: 20 × 5
-# #>   field                 r_type    pg_type           primary_key description
-# #>   <chr>                 <chr>     <chr>             <lgl>       <chr>
-# #> 1 id_plano_acao         double    bigint            FALSE       Identifica…
-# #> 2 id_programa           double    bigint            FALSE       Identifica…
-# #> 3 sigla_unidade_descen… character character varyi… FALSE       Sigla da U…
-# #> …
-
-## -----------------------------------------------------------------------------
-# tg_get("ted", "plano_acao", .limit = 5)
-
-## -----------------------------------------------------------------------------
-# tg_get("ted", "plano_acao", aa_ano_plano_acao = 2024)
-
-## -----------------------------------------------------------------------------
-# tg_get("ted", "plano_acao", aa_ano_plano_acao = c(2024, 2025))
-
-## -----------------------------------------------------------------------------
-# tg_operators()
-# #> # A tibble: 15 × 3
-# #>   operator postgrest meaning
-# #>   <chr>    <chr>     <chr>
-# #> 1 eq       eq        equals
-# #> 2 neq      neq       does not equal
-# #> 3 gt       gt        greater than
-# #> …
-
-## -----------------------------------------------------------------------------
-# tg_get(
-#   "ted", "plano_acao",
-#   aa_ano_plano_acao = gte(2024),
-#   tx_objeto_plano_acao = ilike("*pesquisa*"),
-#   tx_justificativa_plano_acao = not(is_null())
-# )
-
-## -----------------------------------------------------------------------------
-# tg_get(
-#   "ted", "plano_acao",
-#   dt_inicio_vigencia = list(gte("2024-01-01"), lt("2025-01-01"))
-# )
-
-## -----------------------------------------------------------------------------
-# tg_get(
-#   "ted", "plano_acao",
-#   dt_inicio_vigencia = list(
-#     gte(as.Date("2024-01-01")), lt(as.Date("2025-01-01"))
-#   )
-# )
-
-## -----------------------------------------------------------------------------
-# tg_get(
-#   "ted", "plano_acao",
-#   .select = c("id_plano_acao", "vl_total_plano_acao", "dt_inicio_vigencia"),
-#   .order = "vl_total_plano_acao.desc",
-#   .limit = 10
-# )
-
-## -----------------------------------------------------------------------------
-# tg_get(
-#   "ted", "plano_acao",
-#   .order = c("aa_ano_plano_acao.desc", "vl_total_plano_acao.desc.nullslast")
-# )
-
-## -----------------------------------------------------------------------------
-# tg_count("ted", "plano_acao")
-# #> [1] 6176
+# tg_fields("parcerias", "proposta")
+# #> # A tibble: 43 × 5
+# #>    field               r_type    api_type nested description
+# #>    <chr>               <chr>     <chr>    <chr>  <chr>
+# #>  1 id_proposta         double    integer  NA     Identificador único da prop…
+# #>  2 id_programa         double    integer  NA     Identificador do programa a…
+# #>  …
 # 
-# tg_count("fundoafundo", "gestao_financeira_lancamentos")
-# #> [1] 1115444
+# tg_params("parcerias", "proposta")
 
 ## -----------------------------------------------------------------------------
-# plans <- tg_get("ted", "plano_acao", .limit = 5)
+# propostas <- tg_get(
+#   "parcerias", "proposta",
+#   sg_uf_recebedor = "PE",
+#   situacao_proposta = "Aprovada",
+#   .limit = 100
+# )
+
+## -----------------------------------------------------------------------------
+# params <- tg_params("parcerias", "parceria")
+# params[params$multiple, c("param", "max_values")]
+# #> # A tibble: 2 × 2
+# #>   param       max_values
+# #>   <chr>            <int>
+# #> 1 id_parceria        200
+# #> 2 id_proposta        200
 # 
-# class(plans$dt_inicio_vigencia)
+# tg_get("parcerias", "parceria", id_proposta = c(1, 2))
+
+## -----------------------------------------------------------------------------
+# library(purrr)
+# 
+# nordeste <- c("PE", "PB", "AL", "RN", "CE", "SE", "BA", "PI", "MA")
+# 
+# propostas <- list_rbind(map(
+#   nordeste,
+#   \(uf) tg_get("parcerias", "proposta", sg_uf_recebedor = uf, .limit = Inf)
+# ))
+
+## -----------------------------------------------------------------------------
+# params <- tg_params("parcerias", "proposta")
+# params[lengths(params$values) > 0, c("param", "values")]
+# #> # A tibble: 5 × 2
+# #>   param                  values
+# #>   <chr>                  <list>
+# #> 1 sg_uf_recebedor        <chr [27]>
+# #> 2 situacao_proposta      <chr [5]>
+# #> 3 in_situacao_analise    <chr [4]>
+# #> …
+# 
+# params$values[[match("situacao_proposta", params$param)]]
+# #> [1] "Em Análise"    "Rejeitada"     "Aprovada"      "Em Elaboração"
+# #> [5] "Inativada"
+
+## -----------------------------------------------------------------------------
+# tg_count("parcerias", "proposta", situacao_proposta = "Aprovado")
+# #> Error in `tg_count()`:
+# #> ! "Aprovado" is not a permitted value for `situacao_proposta`.
+# #> ℹ Did you mean "Aprovada"?
+# #> ℹ It accepts "Em Análise", "Rejeitada", "Aprovada", "Em Elaboração", and
+# #>   "Inativada".
+
+## -----------------------------------------------------------------------------
+# tg_count("parcerias", "proposta", in_situacao_proposta = "Aprovada")
+# #> Error in `tg_count()`:
+# #> ! Unknown filter: "in_situacao_proposta".
+# #> ✖ The API ignores a parameter it does not recognize and returns every row, so
+# #>   this would look like a query that matched nothing in particular.
+# #> ℹ Did you mean "situacao_proposta"?
+
+## -----------------------------------------------------------------------------
+# propostas <- tg_get("parcerias", "proposta", .limit = 5)
+# 
+# class(propostas$dt_proposta)
 # #> [1] "Date"
-# class(plans$in_forma_execucao_direta)
-# #> [1] "logical"
-# class(plans$aa_ano_plano_acao)
-# #> [1] "integer"
+# class(propostas$vl_total_planejamento_gastos)
+# #> [1] "numeric"
 
 ## -----------------------------------------------------------------------------
-# plans <- tg_get("ted", "plano_acao", .limit = 2500)
+# programas <- tg_get("parcerias", "programa", .limit = 20)
 # 
-# tg_metadata(plans)
-# #> $module
-# #> [1] "ted"
-# #> $table
-# #> [1] "plano_acao"
-# #> $total_rows
-# #> [1] 6176
-# #> $rows_returned
-# #> [1] 2500
-# #> $pages
-# #> [1] 3
-# #> …
+# fields <- tg_fields("parcerias", "programa")
+# fields$field[!is.na(fields$nested)]
+# #> [1] "ufs_habilitadas"      "programa_atende_a"    "categorias_despesa"
+# #> [4] "resultados_esperados" "indicadores_programa"
+# 
+# tg_fields("parcerias", "programa", nested = "ufs_habilitadas")
+# #> # A tibble: 3 × 5
+# #>   field   r_type    api_type nested description
+# #>   <chr>   <chr>     <chr>    <chr>  <chr>
+# #> 1 nm_uf   character string   NA     NA
+# #> 2 sg_uf   character string   NA     NA
+# #> 3 cd_ibge double    integer  NA     NA
+
+## -----------------------------------------------------------------------------
+# library(dplyr)
+# library(tidyr)
+# 
+# programas |>
+#   select(id_programa, ufs_habilitadas) |>
+#   unnest_longer(ufs_habilitadas) |>
+#   unnest_wider(ufs_habilitadas)
+
+## -----------------------------------------------------------------------------
+# tg_updated_at("parcerias")
+# #> [1] "2026-08-03 UTC"
 

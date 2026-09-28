@@ -341,153 +341,180 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 
+<p>These tables are large and the page size is small. This vignette is
+about getting all of a table without losing rows to pagination, and
+about knowing what a download will cost before starting it.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(transferegovr)</span></code></pre></div>
-<div id="the-cap-you-cannot-see" class="section level2">
-<h2>The cap you cannot see</h2>
-<p>The service returns at most <strong>1000 rows per request</strong>,
-however many are asked for, and it does so without complaint: ask for a
-hundred thousand and you are given a thousand and a
-<code>206 Partial Content</code>. Nothing in the body says the result
-was truncated. Only the <code>Content-Range</code> header does.</p>
-<p>This package reads that header, which is why <code>.limit</code>
-counts rows rather than requests, and why anything above 1000 is
-collected page by page:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>plans <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>, <span class="at">.limit =</span> <span class="dv">2500</span>)</span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="fu">nrow</span>(plans)</span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt; [1] 2500</span></span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="fu">tg_metadata</span>(plans)<span class="sc">$</span>pages</span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt; [1] 3</span></span></code></pre></div>
-<p><code>.page_size</code> is capped at 1000 for the same reason. A
-larger value would be accepted by the package, silently truncated by the
-service, and the shortfall would look like missing data.</p>
-</div>
-<div id="ask-how-big-it-is-first" class="section level2">
-<h2>Ask how big it is first</h2>
+<div id="measure-first" class="section level2">
+<h2>Measure first</h2>
+<p>The seventy-four tables hold about 7.5 million rows between them,
+spread very unevenly — from none at all in
+<code>especiais/orgaos_analises_pendentes_especiais</code> to 1,362,980
+in <code>parcerias/extrato_bancario</code>.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>sizes <span class="ot">&lt;-</span> <span class="fu">tg_tables</span>(<span class="at">counts =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>sizes[<span class="fu">order</span>(<span class="sc">-</span>sizes<span class="sc">$</span>rows), <span class="fu">c</span>(<span class="st">&quot;module&quot;</span>, <span class="st">&quot;table&quot;</span>, <span class="st">&quot;columns&quot;</span>, <span class="st">&quot;rows&quot;</span>)]</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co">#&gt; # A tibble: 74 × 4</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt;    module      table                                   columns    rows</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt;    &lt;chr&gt;       &lt;chr&gt;                                     &lt;int&gt;   &lt;dbl&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt;  1 parcerias   extrato_bancario                             13 1362980</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt;  2 fundoafundo gestao_financeira_lancamentos                28 1160094</span></span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co">#&gt;  3 especiais   gestao_financeira_lancamentos_especiais      34  735012</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="co">#&gt;  4 especiais   planos_trabalho_historico                     5  461164</span></span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a><span class="co">#&gt;  5 parcerias   item_proposta                                14  428078</span></span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a><span class="co">#&gt;  …</span></span></code></pre></div>
+<p>That call makes seventy-four requests, and caches them. For a single
+table:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">tg_count</span>(<span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;gestao_financeira_lancamentos&quot;</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co">#&gt; [1] 1115444</span></span></code></pre></div>
-<p>To size everything at once, <code>tg_tables()</code> takes a
-<code>counts</code> argument. It is the only part of that function that
-touches the network — one request per table, cached, so the second call
-in a session is free:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">tg_tables</span>(<span class="at">counts =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(<span class="fu">desc</span>(rows))</span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="co">#&gt; # A tibble: 48 × 6</span></span>
-<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="co">#&gt;   module                  table                           columns    rows …</span></span>
-<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;                   &lt;chr&gt;                             &lt;int&gt;   &lt;dbl&gt;</span></span>
-<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a><span class="co">#&gt; 1 fundoafundo             gestao_financeira_lancamentos        32 1115444</span></span>
-<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a><span class="co">#&gt; 2 fundoafundo             gestao_financeira_subtransacoes      16  377666</span></span>
-<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a><span class="co">#&gt; 3 transferenciasespeciais historico_pagamento_especial          5  281163</span></span>
-<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a><span class="co">#&gt; 4 fundoafundo             plano_acao_historico                  5  183379</span></span>
-<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a><span class="co">#&gt; 5 transferenciasespeciais meta_especial                        16  156016</span></span>
-<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a><span class="co">#&gt; # ℹ 43 more rows</span></span></code></pre></div>
-<p>A million rows is over a thousand requests. The package throttles
-itself to sixty requests a minute by default, so that download takes
-something like twenty minutes. That is usually the wrong shape for the
-question being asked.</p>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co">#&gt; [1] 1160094</span></span></code></pre></div>
+<p><code>tg_count()</code> takes the same filters as
+<code>tg_get()</code>, so you can size the thing you actually want
+rather than the whole table:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">tg_count</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;proposta&quot;</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="co">#&gt; [1] 89415</span></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="fu">tg_count</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;proposta&quot;</span>, <span class="at">sg_uf_recebedor =</span> <span class="st">&quot;PE&quot;</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="co">#&gt; [1] 3258</span></span></code></pre></div>
 </div>
-<div id="narrow-first-then-collect" class="section level2">
-<h2>Narrow first, then collect</h2>
-<p>Two things make a large query smaller, and both happen on the
-server:</p>
-<p><strong>Select only the columns you need.</strong>
-<code>gestao_financeira_lancamentos</code> has 32 columns; if you want
-four of them, the other 28 need never cross the network.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">tg_get</span>(</span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;gestao_financeira_lancamentos&quot;</span>,</span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  <span class="at">.select =</span> <span class="fu">c</span>(</span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>    <span class="st">&quot;id_lancamento_gestao_financeira&quot;</span>,</span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>    <span class="st">&quot;id_plano_acao&quot;</span>,</span>
-<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>    <span class="st">&quot;data_lancamento_gestao_financeira&quot;</span>,</span>
-<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>    <span class="st">&quot;valor_lancamento_gestao_financeira&quot;</span></span>
-<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>  ),</span>
-<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>  <span class="at">.limit =</span> <span class="cn">Inf</span></span>
-<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>)</span></code></pre></div>
-<p><strong>Filter before you fetch.</strong> A year’s worth of a table
-is usually what was wanted anyway:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">tg_count</span>(</span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;gestao_financeira_lancamentos&quot;</span>,</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="at">data_lancamento_gestao_financeira =</span> <span class="fu">list</span>(<span class="fu">gte</span>(<span class="st">&quot;2025-01-01&quot;</span>), <span class="fu">lt</span>(<span class="st">&quot;2026-01-01&quot;</span>))</span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>)</span></code></pre></div>
+<div id="what-a-page-costs" class="section level2">
+<h2>What a page costs</h2>
+<p>Each module caps a page at its own size: <strong>200 rows</strong> in
+<code>especiais</code> and <code>parcerias</code>, <strong>1000</strong>
+in <code>fundoafundo</code> and <code>ted</code>.
+<code>tg_modules()</code> reports it, and <code>.page_size</code>
+defaults to it. Unlike some APIs, these do not silently truncate a
+larger request — one row over the cap is a <code>422</code>, and the
+package refuses it before sending:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;proposta&quot;</span>, <span class="at">.page_size =</span> <span class="dv">201</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="co">#&gt; Error in `tg_get()`:</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="co">#&gt; ! `.page_size` must be a whole number between 1 and 200.</span></span></code></pre></div>
+<p>So the arithmetic is simple and worth doing, and the cap matters as
+much as the size. The largest table,
+<code>parcerias/extrato_bancario</code>, is
+<code>ceiling(1362980 / 200)</code> = <strong>6,815 requests</strong> —
+at the default throttle of sixty a minute, nearly two hours. The second
+largest is barely smaller but lives in a module that serves pages of
+1000, so it takes 1,161 requests, about twenty minutes.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>rows <span class="ot">&lt;-</span> <span class="fu">tg_count</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;extrato_bancario&quot;</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="fu">ceiling</span>(rows <span class="sc">/</span> <span class="dv">200</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co">#&gt; [1] 6815</span></span></code></pre></div>
+<p>If you genuinely need a table that size, consider whether a filter
+narrows it first, and raise the throttle deliberately rather than by
+accident:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">options</span>(<span class="at">transferegovr.requests_per_minute =</span> <span class="dv">120</span>)</span></code></pre></div>
 </div>
-<div id="why-the-order-matters" class="section level2">
-<h2>Why the order matters</h2>
-<p>Offset pagination asks for rows 0–999, then 1000–1999, and so on. In
-Postgres a query without <code>ORDER BY</code> has <strong>no defined
-row order</strong>: the planner is free to return rows differently
-between two executions, and if it does, page two can repeat rows from
-page one and skip others entirely. The result has the right number of
-rows and the wrong contents.</p>
-<p>So every request this package makes carries an explicit order. By
-default it is the table’s primary key where the API declares one, and
-its identifier columns otherwise:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">tg_metadata</span>(plans)<span class="sc">$</span>order</span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="co">#&gt; [1] &quot;id_plano_acao.asc&quot; &quot;id_programa.asc&quot;   &quot;sq_instrumento.asc&quot;</span></span></code></pre></div>
-<p>You can supply your own, and pagination will use it:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>, <span class="at">.order =</span> <span class="st">&quot;vl_total_plano_acao.desc&quot;</span>, <span class="at">.limit =</span> <span class="dv">2500</span>)</span></code></pre></div>
-<p>Bear in mind that ordering by a column with many ties leaves the
-order within each tie undefined, which brings the problem back. Prefer
-an identifier, or add one as a tiebreaker:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">tg_get</span>(</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao&quot;</span>,</span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">.order =</span> <span class="fu">c</span>(<span class="st">&quot;vl_total_plano_acao.desc&quot;</span>, <span class="st">&quot;id_plano_acao.asc&quot;</span>),</span>
-<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="at">.limit =</span> <span class="dv">2500</span></span>
-<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>)</span></code></pre></div>
+<div id="limits-and-offsets-count-rows" class="section level2">
+<h2>Limits and offsets count rows</h2>
+<p><code>.limit</code> and <code>.offset</code> are in rows, not pages,
+whatever <code>.page_size</code> is set to.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;meta_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">450</span>)</span></code></pre></div>
+<p>That is three requests: 200, 200, 50 — the last page is trimmed to
+the limit. An offset that falls inside a page is handled by fetching the
+page it lands in and dropping the rows before it:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;meta_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">100</span>, <span class="at">.offset =</span> <span class="dv">137</span>,</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>       <span class="at">.page_size =</span> <span class="dv">60</span>)</span></code></pre></div>
+<p><code>Inf</code> collects everything that matches:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>programas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;programas_especiais&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span></code></pre></div>
 </div>
-<div id="resuming-and-taking-it-in-pieces" class="section level2">
-<h2>Resuming, and taking it in pieces</h2>
-<p><code>.offset</code> skips rows that have already been collected, so
-a long download can be taken in sittings:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>first <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao_etapa&quot;</span>, <span class="at">.limit =</span> <span class="dv">20000</span>)</span>
-<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>rest <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;plano_acao_etapa&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>, <span class="at">.offset =</span> <span class="dv">20000</span>)</span></code></pre></div>
-<p>Both parts must use the same order, or they are pages of two
-different sequences. The default order is deterministic for a given
-table, so leaving <code>.order</code> alone is the safe choice here.</p>
+<div id="checking-what-you-got" class="section level2">
+<h2>Checking what you got</h2>
+<p>Every result carries the pagination state the API reported:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>metas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;meta_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">450</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="fu">tg_metadata</span>(metas)</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co">#&gt; $module</span></span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="co">#&gt; [1] &quot;especiais&quot;</span></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="co">#&gt; $table</span></span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="co">#&gt; [1] &quot;meta_especiais&quot;</span></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="co">#&gt; $total_rows</span></span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="co">#&gt; [1] 156193</span></span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="co">#&gt; $rows_returned</span></span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a><span class="co">#&gt; [1] 450</span></span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a><span class="co">#&gt; $pages</span></span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="co">#&gt; [1] 3</span></span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a><span class="co">#&gt; …</span></span></code></pre></div>
+<p><code>total_rows</code> is how many rows matched,
+<code>rows_returned</code> how many you have. If collection ends short
+of what the API said it would return, that is a warning rather than a
+silent truncation:</p>
+<pre><code>Warning: Collected 448 rows where the API reported 450.
+ℹ The table may have changed while it was being read.</code></pre>
 </div>
-<div id="when-the-count-and-the-contents-disagree" class="section level2">
-<h2>When the count and the contents disagree</h2>
-<p>The number of rows collected is checked against the total the API
-reported:</p>
-<pre><code>Warning: Collected 4820 rows where the API reported 4900.
-i The table may have changed while it was being read.
-i Check `tg_metadata()` on the result.</code></pre>
-<p>This is a real possibility on a long download, since the underlying
-tables are refreshed daily. It is a warning rather than an error because
-a nearly complete result is still worth having — but it must be visible,
-and <code>tg_metadata()</code> records both numbers so the gap stays in
-the data rather than only in the console.</p>
+<div id="why-the-row-order-is-safe-to-rely-on" class="section level2">
+<h2>Why the row order is safe to rely on</h2>
+<p>These APIs publish no ordering parameter. Page two is simply “page
+two”, and whether that is a well-defined thing depends on the server
+keeping a stable order between requests — which nothing in the
+documentation promises.</p>
+<p>Postgres makes no such promise in general: a query without
+<code>ORDER BY</code> may return rows in a different order between
+executions, and under offset pagination that means page two can repeat
+rows from page one and skip others entirely. A row count would not
+reveal it. Two pages of 200 that overlap by 40 rows still add up to
+400.</p>
+<p>So it was tested rather than assumed. The check is to fetch the same
+rows at two different page sizes and compare them as sequences:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>strip <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>  x <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(x)</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>  <span class="fu">attr</span>(x, <span class="st">&quot;transferegovr_metadata&quot;</span>) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>  <span class="fu">rownames</span>(x) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>  x</span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>}</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>big <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;meta_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">450</span>, <span class="at">.page_size =</span> <span class="dv">200</span>)</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>small <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;meta_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">450</span>, <span class="at">.page_size =</span> <span class="dv">50</span>)</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a><span class="fu">identical</span>(<span class="fu">strip</span>(big), <span class="fu">strip</span>(small))</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<p>Three requests and nine requests, cutting the same 450 rows at
+different boundaries, produce the same rows in the same order. That is
+what rules out both overlap and skipping.</p>
+<p>The same comparison holds 100,000 rows deep, across repeated calls,
+on tables with no natural key, and on tables with nested columns.
+<code>test-live.R</code> re-runs all of it against the real services, so
+a change upstream shows up as a failing test rather than as quietly
+wrong data.</p>
 </div>
 <div id="caching" class="section level2">
 <h2>Caching</h2>
-<p>Every request is cached for an hour, so re-running an analysis does
-not re-fetch what it already has. Each page is cached separately, so an
-interrupted collection resumes from the network only where it has
-to.</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="fu">tg_cache_dir</span>()</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="co">#&gt; [1] &quot;/tmp/RtmpXXXX/transferegovr-cache&quot;</span></span></code></pre></div>
-<p>The default is the session’s temporary directory, so nothing outlives
-the session unless you ask for it:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">tg_cache_dir</span>(tools<span class="sc">::</span><span class="fu">R_user_dir</span>(<span class="st">&quot;transferegovr&quot;</span>, <span class="st">&quot;cache&quot;</span>))</span></code></pre></div>
-<p>Set <code>TRANSFEREGOVR_CACHE_DIR</code> in <code>.Renviron</code> to
-make that permanent, and adjust the lifetime with
-<code>options(transferegovr.cache_ttl = 86400)</code> — the data behind
-these APIs is refreshed once a day, so an hour is conservative.</p>
-<p><code>tg_metadata(x)$cached</code> tells you whether a result came
-from the network or from disk.</p>
+<p>Responses are cached for an hour, so re-running a collection during a
+session costs nothing:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>first <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;meta_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">450</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>again <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;meta_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">450</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a><span class="fu">tg_metadata</span>(again)<span class="sc">$</span>cached</span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<p>The default cache lives in the session’s temporary directory, so
+nothing is written outside the session unless you ask. For a long
+collection you will want it to survive:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="fu">tg_cache_dir</span>(tools<span class="sc">::</span><span class="fu">R_user_dir</span>(<span class="st">&quot;transferegovr&quot;</span>, <span class="st">&quot;cache&quot;</span>))</span></code></pre></div>
+<p>The APIs send no <code>ETag</code>, <code>Cache-Control</code> or
+<code>Last-Modified</code>, so HTTP caching would store nothing — this
+cache is the package’s own. Use <code>tg_updated_at()</code> to decide
+when a cached copy is stale:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="fu">tg_updated_at</span>(<span class="st">&quot;fundoafundo&quot;</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a><span class="co">#&gt; [1] &quot;2026-09-28 06:02:02 UTC&quot;</span></span></code></pre></div>
 </div>
-<div id="rate-limiting-and-retries" class="section level2">
-<h2>Rate limiting and retries</h2>
-<p>Requests are throttled to sixty a minute and retried up to four times
-on a 429 or a 5xx, with exponential backoff and jitter. A 400 is not
-retried: it means the service rejected the query itself and will reject
-it identically next time.</p>
-<p>Both are adjustable, but the defaults exist to keep the package a
-considerate client of a public service:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">options</span>(</span>
-<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>  <span class="at">transferegovr.requests_per_minute =</span> <span class="dv">30</span>,</span>
-<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>  <span class="at">transferegovr.max_tries =</span> <span class="dv">6</span>,</span>
-<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>  <span class="at">transferegovr.timeout =</span> <span class="dv">120</span></span>
-<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>)</span></code></pre></div>
+<div id="a-pattern-for-very-large-tables" class="section level2">
+<h2>A pattern for very large tables</h2>
+<p>For anything in the hundreds of thousands, collect in slices and
+write each one out, so an interrupted run does not start over:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="fu">library</span>(purrr)</span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a>total <span class="ot">&lt;-</span> <span class="fu">tg_count</span>(<span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;gestao_financeira_lancamentos&quot;</span>)</span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a>slice_size <span class="ot">&lt;-</span> <span class="dv">20000</span></span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a>starts <span class="ot">&lt;-</span> <span class="fu">seq</span>(<span class="dv">0</span>, total <span class="sc">-</span> <span class="dv">1</span>, <span class="at">by =</span> slice_size)</span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a></span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a><span class="fu">walk</span>(starts, <span class="cf">function</span>(start) {</span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a>  file <span class="ot">&lt;-</span> <span class="fu">sprintf</span>(<span class="st">&quot;lancamentos-%08d.rds&quot;</span>, start)</span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">file.exists</span>(file)) <span class="fu">return</span>(<span class="fu">invisible</span>(<span class="cn">NULL</span>))</span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a></span>
+<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a>  rows <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(</span>
+<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a>    <span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;gestao_financeira_lancamentos&quot;</span>,</span>
+<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a>    <span class="at">.limit =</span> slice_size, <span class="at">.offset =</span> start</span>
+<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a>  )</span>
+<span id="cb17-15"><a href="#cb17-15" tabindex="-1"></a>  <span class="fu">saveRDS</span>(rows, file)</span>
+<span id="cb17-16"><a href="#cb17-16" tabindex="-1"></a>})</span></code></pre></div>
+<p>Because the order is stable, the slices reassemble into the whole
+table without gaps or repeats.</p>
 </div>
 
 

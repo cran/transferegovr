@@ -15,7 +15,7 @@ tg_tabelas(modulo = NULL, contagens = FALSE)
 
 \item{counts}{If \code{TRUE}, adds a \code{rows} column with the number of rows each
 table currently holds. This is the only part of this function that needs a
-network connection: it makes one request per table, so \code{tg_tables(counts = TRUE)} with no module makes forty-eight. Responses are cached.}
+network connection: it makes one request per table, so \code{tg_tables(counts = TRUE)} with no module makes seventy-four. Responses are cached.}
 
 \item{modulo}{Portuguese alias for \code{module}, available in \code{\link[=tg_tabelas]{tg_tabelas()}} and
 \code{\link[=tg_campos]{tg_campos()}}.}
@@ -24,26 +24,30 @@ network connection: it makes one request per table, so \code{tg_tables(counts = 
 \code{\link[=tg_tabelas]{tg_tabelas()}}.}
 }
 \value{
-A tibble with one row per table: its module, name, number of columns,
-the primary key when the API declares one, and the description published in
-the API schema. With \code{counts = TRUE}, also the current number of rows.
+A tibble with one row per table: its module, name, the endpoint path
+it maps to, its number of columns and filterable parameters, and the
+description published in the API schema. With \code{counts = TRUE}, also the
+current number of rows.
 }
 \description{
 List the tables a module publishes
 }
 \examples{
-tg_tables("ted")
+tg_tables("parcerias")
 tg_tables()
 
 if (interactive()) {
   # How big is everything, largest first?
-  tg_tables(counts = TRUE)[order(-tg_tables(counts = TRUE)$rows), ]
+  sizes <- tg_tables(counts = TRUE)
+  sizes[order(-sizes$rows), ]
 }
 }
 \seealso{
 Other discovery:
 \code{\link[=tg_fields]{tg_fields()}},
 \code{\link[=tg_modules]{tg_modules()}},
-\code{\link[=tg_schema_date]{tg_schema_date()}}
+\code{\link[=tg_params]{tg_params()}},
+\code{\link[=tg_schema_date]{tg_schema_date()}},
+\code{\link[=tg_updated_at]{tg_updated_at()}}
 }
 \concept{discovery}

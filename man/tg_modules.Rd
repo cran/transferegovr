@@ -11,7 +11,8 @@ tg_modulos()
 }
 \value{
 A tibble with one row per module: its name, the label used in this
-documentation, the number of tables it publishes, and its API base URL.
+documentation, the number of tables it publishes, the largest page it
+serves in one request, and its API base URL.
 }
 \description{
 List the TransfereGov API modules
@@ -22,7 +23,9 @@ tg_modules()
 \seealso{
 Other discovery:
 \code{\link[=tg_fields]{tg_fields()}},
+\code{\link[=tg_params]{tg_params()}},
 \code{\link[=tg_schema_date]{tg_schema_date()}},
-\code{\link[=tg_tables]{tg_tables()}}
+\code{\link[=tg_tables]{tg_tables()}},
+\code{\link[=tg_updated_at]{tg_updated_at()}}
 }
 \concept{discovery}

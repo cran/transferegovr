@@ -21,19 +21,48 @@ An R interface to the open data APIs of **TransfereGov**, the Brazilian
 federal government’s platform for transfers to states, municipalities
 and civil society.
 
-The platform publishes three APIs, covering **48 tables** in all:
+## What this package covers
+
+The package targets the public API host,
+`api-publica.transferegov.gestao.gov.br`, which publishes four modules
+and **74 tables** in all:
 
 | Module | Covers | Tables |
 |----|----|----|
-| `transferenciasespeciais` | Special transfers, created by Constitutional Amendment 105/2019 for individual parliamentary amendments | 14 |
-| `fundoafundo` | Fund-to-fund transfers, from federal funds directly to state, district and municipal funds | 21 |
-| `ted` | Decentralized credit between federal bodies (*termo de execução descentralizada*) | 13 |
+| `especiais` | Special transfers, created by Constitutional Amendment 105/2019 for individual parliamentary amendments | 23 |
+| `fundoafundo` | Fund-to-fund transfers, from federal funds directly to state, district and municipal funds | 20 |
+| `parcerias` | Partnership management: programs, proposals, partnerships, their financial execution and bank statements | 17 |
+| `ted` | Decentralized credit between federal bodies (*termo de execução descentralizada*): programs, action plans, credit notes and financial programming | 14 |
 
-All three are [PostgREST](https://postgrest.org) services, so this
-package exposes their filtering, column selection and ordering directly,
-rather than wrapping each table in a function of its own.
+Every table in the published data models is reachable. Where the API
+folds a child table into its parent rather than giving it an endpoint of
+its own, it arrives as a list column — 5 of them in `fundoafundo`, 13 in
+`parcerias`, 4 in `ted` — and `tg_fields(nested = )` describes what is
+inside.
+
+### What it does not cover
+
+- **The older PostgREST endpoints** at `api.transferegov.gestao.gov.br`,
+  which version 0.1.0 of this package used. The government announced
+  their retirement for 2026-08-31. They are a different and largely
+  superseded contract — different column names, a handful of columns
+  each way, and a `historico_pagamento_especial` table that the new
+  service does not carry.
+- **The Discricionárias e Legais module (SICONV)**, which has no API: it
+  is published as CSV archives at
+  <https://api-publica.transferegov.gestao.gov.br/downloads>. The
+  government has announced APIs for it in four stages between July 2026
+  and October 2027, starting with preparatory acts.
 
 ## Installation
+
+From CRAN:
+
+``` r
+install.packages("transferegovr")
+```
+
+The development version, from GitHub:
 
 ``` r
 # install.packages("pak")
@@ -46,62 +75,78 @@ pak::pak("StrategicProjects/transferegovr")
 library(transferegovr)
 
 tg_modules()
-tg_tables("ted")
-tg_fields("ted", "plano_acao")
+tg_tables("parcerias")
+tg_fields("parcerias", "proposta")
+tg_params("parcerias", "proposta")
 ```
 
-`tg_get()` retrieves rows. Name each filter after the column it applies
-to:
-
-``` r
-tg_get("ted", "plano_acao", aa_ano_plano_acao = 2024)
-```
-
-A bare value means “equals”, a bare vector means “is one of”, and the
-operators from `tg_operators()` cover the rest:
+`tg_get()` retrieves rows. Each filter is named after one of the
+endpoint’s own query parameters, and parameters combine with AND:
 
 ``` r
 tg_get(
-  "ted", "plano_acao",
-  aa_ano_plano_acao = gte(2024),
-  sigla_unidade_descentralizada = c("CNPq", "CAPES"),
-  tx_objeto_plano_acao = ilike("*pesquisa*"),
-  .select = c("id_plano_acao", "vl_total_plano_acao", "dt_inicio_vigencia"),
-  .order = "vl_total_plano_acao.desc",
+  "parcerias", "proposta",
+  sg_uf_recebedor = "PE",
+  situacao_proposta = "Aprovada",
   .limit = 20
 )
 ```
 
-Several conditions on one column go in a list, and the API combines them
-with AND:
+That is almost the whole filtering vocabulary. These services compare
+for equality — no greater-than, no pattern match — and publish no
+ordering or column-selection parameter. The one extension is on
+identifiers: 113 of them take several values and match any, which
+`tg_params()` marks as `multiple`:
 
 ``` r
-tg_get(
-  "fundoafundo", "plano_acao",
-  data_inicio_vigencia_plano_acao = list(gte("2024-01-01"), lt("2025-01-01"))
-)
+tg_get("ted", "planos_acao_metas", id_plano_acao = c(3, 4))
 ```
+
+`tg_params()` lists what each table accepts, including the permitted
+values of the enumerated parameters.
+
+## A typo must not look like an answer
+
+These services **ignore a query parameter they do not recognize** and
+answer `200` with the whole table. Misspell `situacao_proposta` and you
+get 89,415 rows where the filter would have given 85,041 — a plausible
+number, quietly wrong.
+
+So every parameter name is checked against the packaged schema before a
+request goes out:
+
+``` r
+tg_count("parcerias", "proposta", in_situacao_proposta = "Aprovada")
+#> Error in `tg_count()`:
+#> ! Unknown filter: "in_situacao_proposta".
+#> ✖ The API ignores a parameter it does not recognize and returns every row, so
+#>   this would look like a query that matched nothing in particular.
+#> ℹ Did you mean "situacao_proposta"?
+```
+
+Enumerated values are checked the same way, before the round trip rather
+than after it.
 
 ## Size first, download second
 
-The service returns at most 1000 rows per request, and these tables are
-not small — the largest holds over a million rows, which is more than a
-thousand requests. Ask before you fetch:
+Each request returns one page — at most 200 rows in `especiais` and
+`parcerias`, 1000 in `fundoafundo` and `ted` — and these tables are not
+small. Ask before you fetch:
 
 ``` r
-tg_count("fundoafundo", "gestao_financeira_lancamentos")
-#> [1] 1115444
+tg_count("especiais", "meta_especiais")
+#> [1] 156193
 ```
 
-`.limit` counts rows, not pages. Anything above 1000 is collected page
-by page, in an explicit order so that the pages cannot overlap or skip
-rows, and the total collected is checked against what the API reported:
+`.limit` counts rows, not pages. Anything above one page is collected
+page by page, and the total collected is checked against what the API
+reported:
 
 ``` r
-plans <- tg_get("ted", "plano_acao", .limit = Inf)
+metas <- tg_get("especiais", "meta_especiais", .limit = Inf)
 
-tg_metadata(plans)$total_rows
-tg_metadata(plans)$pages
+tg_metadata(metas)$total_rows
+tg_metadata(metas)$pages
 ```
 
 ## Types
@@ -111,15 +156,24 @@ column that happens to be entirely null on one page does not change
 class on the next:
 
 ``` r
-plans <- tg_get("ted", "plano_acao", .limit = 5)
+proposals <- tg_get("parcerias", "proposta", .limit = 5)
 
-class(plans$dt_inicio_vigencia)
+class(proposals$dt_proposta)
 #> [1] "Date"
-class(plans$in_forma_execucao_direta)
-#> [1] "logical"
+class(proposals$intervenientes_proposta)
+#> [1] "list"
 ```
 
-## Caching
+## Freshness and caching
+
+Each module reports when it was last loaded, which is the only freshness
+signal these APIs give — they send no `ETag`, `Cache-Control` or
+`Last-Modified`:
+
+``` r
+tg_updated_at("parcerias")
+#> [1] "2026-09-28 UTC"
+```
 
 Responses are cached for an hour in the session’s temporary directory,
 so nothing is written outside the session unless you ask for it. To keep
@@ -134,40 +188,46 @@ empties it.
 
 ## How it works
 
-<img class="architecture-diagram" src="man/figures/architecture.svg" alt="Architecture of transferegovr: the public verbs pass through filter and schema validation, the pagination loop, and the HTTP client and its cache, reach the three PostgREST services, and return through the parser as a typed tibble." width="100%" />
+<img class="architecture-diagram" src="man/figures/architecture.svg" alt="Architecture of transferegovr: the public verbs pass through parameter and schema validation, the pagination loop, and the HTTP client and its cache, reach the four services, and return through the parser as a typed tibble." width="100%" />
 
-Two things in that picture are worth stating plainly, because they are
-where a naive client of these APIs loses data:
+Two things in that picture are where a naive client of these APIs loses
+data:
 
-- **The 1000-row cap is silent.** Ask for more and the service returns
-  1000 rows with a `206`, and nothing in the body says the result was
-  cut short. Only `Content-Range` does. `.limit` counts rows and is met
-  by fetching pages.
-- **Offset pagination needs an order.** A Postgres query without
-  `ORDER BY` has no defined row order, so page two can repeat page one
-  and skip rows elsewhere. Every request this package sends carries an
-  explicit order, and the rows collected are checked against the total
-  the API reported.
+- **An unrecognized parameter is ignored, not rejected.** The request
+  succeeds and returns everything. Validating names client-side is the
+  only defense, which is why the packaged schema freezes the parameter
+  list and not just the columns.
+- **Repeating a parameter does not combine conditions.** The service
+  keeps the last occurrence and discards the rest without saying so. A
+  parameter that takes several values wants them in one comma-separated
+  value instead, and which parameters do is not in the OpenAPI documents
+  — it was established by asking the service. So the package sends a
+  list only where the service reads it as one, and refuses a repeated or
+  multi-valued filter everywhere else.
+
+Page order is the server’s — these APIs publish no ordering parameter —
+so it was verified rather than assumed: the same rows come back in the
+same sequence across page sizes, across repeated calls, 100,000 rows
+deep, on tables with no key, and on tables with nested columns.
+`tests/testthat/test-live.R` keeps checking it.
 
 ## Column names are in Portuguese
 
-Table names, column names and categorical values belong to the API and
-are left as the government publishes them. The package’s own functions,
-arguments and documentation are in English, with Portuguese aliases
-(`tg_obter()`, `tg_contar()`, `tg_tabelas()`, `tg_campos()`) for the
-exported verbs.
+Table names, column names, parameter names and categorical values belong
+to the API and are left as the government publishes them. The package’s
+own functions, arguments and documentation are in English, with
+Portuguese aliases (`tg_obter()`, `tg_contar()`, `tg_tabelas()`,
+`tg_campos()`, `tg_parametros()`, `tg_atualizado_em()`) for the exported
+verbs.
 
 ## Related
 
 - [obrasgovr](https://github.com/StrategicProjects/obrasgovr) — the
   ObrasGov public works API.
-- The TransfereGov platform also publishes daily CSV extracts of SICONV
-  agreement data at
-  <https://www.gov.br/transferegov/pt-br/ferramentas-gestao/dados-abertos/download-dados>.
-  Those files are a separate source and are not covered by this package.
 
 ## Official documentation
 
-- <https://docs.api.transferegov.gestao.gov.br/transferenciasespeciais/>
-- <https://docs.api.transferegov.gestao.gov.br/fundoafundo/>
-- <https://docs.api.transferegov.gestao.gov.br/ted/>
+- <https://api-publica.transferegov.gestao.gov.br/especiais/docs>
+- <https://api-publica.transferegov.gestao.gov.br/fundoafundo/docs>
+- <https://api-publica.transferegov.gestao.gov.br/parcerias/docs>
+- <https://api-publica.transferegov.gestao.gov.br/ted/docs>

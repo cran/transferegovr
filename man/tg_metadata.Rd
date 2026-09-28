@@ -15,8 +15,8 @@ tg_metadados(x)
 \value{
 A list holding the module and table queried, the total number of
 matching rows the API reported, how many rows and pages were retrieved, the
-offset, page size, order and selection used, and when the query ran.
-\code{NULL} for any other object.
+offset, page size and filters used, and when the query ran. \code{NULL} for any
+other object.
 }
 \description{
 Inspect what a query retrieved

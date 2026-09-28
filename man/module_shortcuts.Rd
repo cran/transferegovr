@@ -2,16 +2,19 @@
 % Please edit documentation in R/get.R
 \name{module_shortcuts}
 \alias{module_shortcuts}
-\alias{tg_ted}
+\alias{tg_parcerias}
 \alias{tg_fundo_a_fundo}
-\alias{tg_transferencias_especiais}
+\alias{tg_especiais}
+\alias{tg_ted}
 \title{Query a single module}
 \usage{
-tg_ted(table, ...)
+tg_parcerias(table, ...)
 
 tg_fundo_a_fundo(table, ...)
 
-tg_transferencias_especiais(table, ...)
+tg_especiais(table, ...)
+
+tg_ted(table, ...)
 }
 \arguments{
 \item{table}{A table name from \code{\link[=tg_tables]{tg_tables()}} for that module.}
@@ -28,9 +31,10 @@ within one API.
 }
 \examples{
 if (interactive()) {
-  tg_ted("plano_acao", .limit = 10)
-  tg_fundo_a_fundo("programa", .limit = 10)
-  tg_transferencias_especiais("programa_especial")
+  tg_parcerias("proposta", .limit = 10)
+  tg_fundo_a_fundo("programas", .limit = 10)
+  tg_especiais("programas_especiais", .limit = 10)
+  tg_ted("termos_execucao", .limit = 10)
 }
 }
 \seealso{

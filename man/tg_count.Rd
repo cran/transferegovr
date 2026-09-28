@@ -5,35 +5,18 @@
 \alias{tg_contar}
 \title{Count the rows a query matches}
 \usage{
-tg_count(
-  module,
-  table,
-  ...,
-  .params = list(),
-  .cache = NULL,
-  .base_url = tg_base_url()
-)
+tg_count(module, table, ..., .cache = NULL, .base_url = NULL)
 
-tg_contar(
-  module,
-  table,
-  ...,
-  .params = list(),
-  .cache = NULL,
-  .base_url = tg_base_url()
-)
+tg_contar(module, table, ..., .cache = NULL, .base_url = NULL)
 }
 \arguments{
-\item{module}{A module name from \code{\link[=tg_modules]{tg_modules()}}: \code{"transferenciasespeciais"},
-\code{"fundoafundo"} or \code{"ted"}. Aliases such as \code{"fundo_a_fundo"} are accepted.}
+\item{module}{A module name from \code{\link[=tg_modules]{tg_modules()}}: \code{"especiais"},
+\code{"fundoafundo"}, \code{"parcerias"} or \code{"ted"}. Aliases such as
+\code{"fundo_a_fundo"} are accepted.}
 
 \item{table}{A table name from \code{\link[=tg_tables]{tg_tables()}}.}
 
-\item{...}{Filters, named after the columns they apply to. See \code{\link[=tg_get]{tg_get()}}.}
-
-\item{.params}{Extra query parameters passed to the API verbatim, as a named
-list. This is the escape hatch for 'PostgREST' features the package does
-not model, such as \code{list(or = "(aa_ano_plano_acao.eq.2024,\\ aa_ano_plano_acao.eq.2025)")}.}
+\item{...}{Filters, named after the parameters they set. See \code{\link[=tg_get]{tg_get()}}.}
 
 \item{.cache}{Whether to serve the request from the response cache. \code{NULL}
 follows the \code{transferegovr.cache} option. See \code{\link[=tg_cache_dir]{tg_cache_dir()}}.}
@@ -46,12 +29,13 @@ A single number.
 \description{
 Asks the API for the number of rows matching a set of filters without
 retrieving them. Worth doing before a large \code{\link[=tg_get]{tg_get()}}: the biggest table in
-these APIs holds over a million rows, which is more than a thousand requests.
+these APIs holds over a million rows, which at 200 rows a request is more
+than five thousand requests.
 }
 \examples{
 if (interactive()) {
-  tg_count("ted", "plano_acao")
-  tg_count("ted", "plano_acao", aa_ano_plano_acao = 2024)
+  tg_count("parcerias", "proposta")
+  tg_count("parcerias", "proposta", situacao_proposta = "Aprovada")
 }
 }
 \seealso{

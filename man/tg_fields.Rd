@@ -5,15 +5,19 @@
 \alias{tg_campos}
 \title{List the columns of a table}
 \usage{
-tg_fields(module, table)
+tg_fields(module, table, nested = NULL)
 
-tg_campos(modulo, tabela)
+tg_campos(modulo, tabela, nested = NULL)
 }
 \arguments{
 \item{module}{A module name from \code{\link[=tg_modules]{tg_modules()}}. Aliases such as
 \code{"fundo_a_fundo"} are accepted. \code{NULL} lists the tables of every module.}
 
 \item{table}{A table name from \code{\link[=tg_tables]{tg_tables()}}.}
+
+\item{nested}{The name of a list column, to describe the columns of the
+objects inside it instead of the table's own. \code{NULL}, the default,
+describes the table.}
 
 \item{modulo}{Portuguese alias for \code{module}, available in \code{\link[=tg_tabelas]{tg_tabelas()}} and
 \code{\link[=tg_campos]{tg_campos()}}.}
@@ -23,21 +27,27 @@ tg_campos(modulo, tabela)
 }
 \value{
 A tibble with one row per column: its name, the R type the package
-coerces it to, the Postgres type the API reports, whether it is part of the
-declared primary key, and its description.
+coerces it to, the type the API declares, the sub-schema it nests when it
+is a list column, and its description.
 }
 \description{
-Every column name may be used as a filter in \code{\link[=tg_get]{tg_get()}} and \code{\link[=tg_count]{tg_count()}}, in
-\code{.select}, and in \code{.order}. Column names and categorical values stay in
-Portuguese because they are the API's own contract.
+Column names stay in Portuguese because they are the API's own contract.
+Not every column can be filtered on; \code{\link[=tg_params]{tg_params()}} lists the ones that can.
 }
 \examples{
-tg_fields("ted", "plano_acao")
+tg_fields("parcerias", "proposta")
+
+# A list column, and what it holds
+fields <- tg_fields("parcerias", "proposta")
+fields[!is.na(fields$nested), c("field", "nested")]
+tg_fields("parcerias", "proposta", nested = "intervenientes_proposta")
 }
 \seealso{
 Other discovery:
 \code{\link[=tg_modules]{tg_modules()}},
+\code{\link[=tg_params]{tg_params()}},
 \code{\link[=tg_schema_date]{tg_schema_date()}},
-\code{\link[=tg_tables]{tg_tables()}}
+\code{\link[=tg_tables]{tg_tables()}},
+\code{\link[=tg_updated_at]{tg_updated_at()}}
 }
 \concept{discovery}

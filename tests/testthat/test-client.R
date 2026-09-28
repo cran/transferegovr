@@ -1,262 +1,213 @@
-test_that("the request targets the module and table under the base URL", {
-  recorded <- local_recorded_requests(mock_page(1, total = 1))
+# The request builder and the error translation. These services report a
+# rejected query as a list of validation objects naming the offending
+# parameter, which is worth surfacing rather than reducing to a status code.
 
-  tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE)
+test_that("the base URL is the public API and can be overridden", {
+  expect_equal(tg_base_url(), "https://api-publica.transferegov.gestao.gov.br")
 
-  url <- httr2::url_parse(recorded$requests[[1]]$url)
-  expect_equal(url$hostname, "api.transferegov.gestao.gov.br")
-  expect_equal(url$path, "/ted/plano_acao")
+  withr::local_options(transferegovr.base_url = "https://example.org")
+  expect_equal(tg_base_url(), "https://example.org")
 })
 
-test_that("the first request asks for an exact count", {
-  # Without `Prefer: count=exact` the service reports the total as "*" and
-  # multi-page collection has nothing to bound itself with.
+test_that("the option redirects requests", {
+  withr::local_options(transferegovr.base_url = "https://example.org")
   recorded <- local_recorded_requests(mock_page(1, total = 1))
 
-  tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE)
+  tg_get("parcerias", "parceria", .limit = 1, .progress = FALSE)
 
-  expect_equal(recorded$requests[[1]]$headers$Prefer, "count=exact")
+  expect_match(recorded$requests[[1]]$url, "^https://example\\.org/")
 })
 
-test_that("filters, select and order all reach the query string", {
+test_that(".base_url takes precedence over the option", {
+  withr::local_options(transferegovr.base_url = "https://example.org")
   recorded <- local_recorded_requests(mock_page(1, total = 1))
 
-  tg_get(
-    "ted", "plano_acao",
-    aa_ano_plano_acao = gte(2024),
-    .select = c("id_plano_acao", "aa_ano_plano_acao"),
-    .order = "id_plano_acao.desc",
-    .limit = 1,
-    .cache = FALSE
-  )
+  tg_get("parcerias", "parceria", .limit = 1, .progress = FALSE,
+         .base_url = "https://elsewhere.test")
 
-  query <- request_query(recorded$requests[[1]])
-  expect_equal(query[["aa_ano_plano_acao"]], "gte.2024")
-  expect_equal(query[["select"]], "id_plano_acao,aa_ano_plano_acao")
-  expect_equal(query[["order"]], "id_plano_acao.desc")
+  expect_match(recorded$requests[[1]]$url, "^https://elsewhere\\.test/")
 })
 
-test_that("two conditions on one column become two query parameters", {
-  recorded <- local_recorded_requests(mock_page(1, total = 1))
-
-  tg_get(
-    "ted", "plano_acao",
-    dt_inicio_vigencia = list(gte("2024-01-01"), lt("2025-01-01")),
-    .limit = 1,
-    .cache = FALSE
-  )
-
-  query <- request_query(recorded$requests[[1]])
-  expect_equal(sum(names(query) == "dt_inicio_vigencia"), 2L)
-  expect_setequal(
-    unname(query[names(query) == "dt_inicio_vigencia"]),
-    c("gte.2024-01-01", "lt.2025-01-01")
-  )
-})
-
-test_that("an order is always sent, so paging has a defined row order", {
-  # Offset pagination over an unordered query has no defined order in Postgres
-  # and could repeat or skip rows across page boundaries.
-  recorded <- local_recorded_requests(mock_page(1, total = 1))
-
-  tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE)
-
-  expect_true("order" %in% names(request_query(recorded$requests[[1]])))
-})
-
-test_that(".params reach the query verbatim", {
-  recorded <- local_recorded_requests(mock_page(1, total = 1))
-
-  tg_get(
-    "ted", "plano_acao",
-    .params = list(
-      or = "(aa_ano_plano_acao.eq.2024,aa_ano_plano_acao.eq.2025)"
-    ),
-    .limit = 1,
-    .cache = FALSE
-  )
-
-  query <- request_query(recorded$requests[[1]])
-  expect_equal(
-    query[["or"]],
-    "(aa_ano_plano_acao.eq.2024,aa_ano_plano_acao.eq.2025)"
-  )
-})
-
-test_that(".params cannot hijack the pagination parameters", {
+test_that("a base URL that is not a URL is refused", {
   expect_error(
-    tg_get("ted", "plano_acao", .params = list(limit = 5), .cache = FALSE),
-    "\\.limit"
+    tg_get("parcerias", "parceria", .base_url = "not a url"),
+    class = "transferegovr_url_error"
   )
   expect_error(
-    tg_get("ted", "plano_acao", .params = list(offset = 5), .cache = FALSE)
+    tg_get("parcerias", "parceria", .base_url = c("a", "b")),
+    class = "transferegovr_url_error"
   )
 })
 
-test_that(".params is checked before any request is made", {
-  expect_error(tg_get("ted", "plano_acao", .params = list(1), .cache = FALSE))
-  expect_error(
-    tg_get("ted", "plano_acao", .params = list(a = c(1, 2)), .cache = FALSE)
-  )
-  expect_error(
-    tg_get("ted", "plano_acao", .params = list(a = NA), .cache = FALSE)
+test_that("a trailing slash on the base URL does not double up", {
+  recorded <- local_recorded_requests(mock_page(1, total = 1))
+
+  tg_get("parcerias", "parceria", .limit = 1, .progress = FALSE,
+         .base_url = "https://example.org/")
+
+  expect_false(grepl("org//", recorded$requests[[1]]$url))
+})
+
+test_that("the request carries a user agent naming the package", {
+  recorded <- local_recorded_requests(mock_page(1, total = 1))
+
+  tg_get("parcerias", "parceria", .limit = 1, .progress = FALSE)
+
+  expect_match(
+    recorded$requests[[1]]$options$useragent,
+    "transferegovr"
   )
 })
 
-test_that("a PostgREST error body is surfaced, not swallowed", {
+# Errors ----------------------------------------------------------------------
+
+test_that("a 422 surfaces the parameter the service objected to", {
   local_recorded_requests(mock_json_response(
     paste0(
-      '{"code":"42703","details":null,"hint":null,',
-      '"message":"column plano_acao.x does not exist"}'
+      '{"detail":[{"type":"literal_error",',
+      '"loc":["query","situacao_proposta"],',
+      '"msg":"Input should be \'Aprovada\'"}]}'
     ),
-    status = 400L
+    status = 422L
   ))
 
-  expect_error(
-    tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE),
-    "does not exist",
-    class = "transferegovr_http_400"
+  expect_snapshot(
+    error = TRUE,
+    tg_get("parcerias", "proposta", .progress = FALSE)
   )
 })
 
-test_that("hint and details from the API are shown when present", {
-  local_recorded_requests(mock_json_response(
-    paste0(
-      '{"code":"PGRST100","details":"unexpected end of input",',
-      '"hint":"try again","message":"parse error"}'
-    ),
-    status = 400L
-  ))
-
-  expect_error(
-    tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE),
-    "unexpected end of input",
-    class = "transferegovr_http_error"
+test_that("a 404 surfaces its plain-string detail", {
+  local_recorded_requests(
+    mock_json_response('{"detail":"Not Found"}', status = 404L)
   )
-})
-
-test_that("an error status carries a class naming the status", {
-  local_recorded_requests(mock_json_response("{}", status = 404L))
 
   expect_error(
-    tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE),
+    tg_get("parcerias", "parceria", .progress = FALSE),
+    "Not Found",
     class = "transferegovr_http_404"
   )
 })
 
-test_that("an error body that is not an object still reports the status", {
-  # `$` on an atomic value would error and mask the status being reported.
-  local_recorded_requests(mock_json_response("\"boom\"", status = 500L))
+test_that("an error body that is not JSON still reports the status", {
+  local_recorded_requests(
+    mock_json_response("<html>gateway</html>", status = 502L,
+                       content_type = "text/html")
+  )
 
   expect_error(
-    tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE),
-    "HTTP 500",
+    tg_get("parcerias", "parceria", .progress = FALSE),
+    class = "transferegovr_http_502"
+  )
+})
+
+test_that("a detail carrying braces is not read as cli markup", {
+  local_recorded_requests(mock_json_response(
+    '{"detail":"unexpected {token} here"}',
+    status = 400L
+  ))
+
+  expect_error(
+    tg_get("parcerias", "parceria", .progress = FALSE),
+    "\\{token\\}",
     class = "transferegovr_http_error"
   )
 })
 
-test_that("an unparseable body is reported as such", {
-  local_recorded_requests(mock_json_response("not json at all"))
+test_that("every validation error is reported, not only the first", {
+  local_recorded_requests(mock_json_response(
+    paste0(
+      '{"detail":[',
+      '{"loc":["query","a"],"msg":"first problem"},',
+      '{"loc":["query","b"],"msg":"second problem"}]}'
+    ),
+    status = 422L
+  ))
+
+  message <- tryCatch(
+    tg_get("parcerias", "parceria", .progress = FALSE),
+    error = conditionMessage
+  )
+
+  expect_match(message, "first problem")
+  expect_match(message, "second problem")
+})
+
+test_that("a body that is not JSON at all is reported as such", {
+  local_recorded_requests(mock_json_response("not json"))
 
   expect_error(
-    tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE),
+    tg_get("parcerias", "parceria", .progress = FALSE),
     class = "transferegovr_response_error"
   )
 })
 
-test_that("a JSON object where an array of rows belongs is rejected", {
-  # Reading `{"a":1}` as a single row would turn an error page into data.
-  local_recorded_requests(mock_json_response('{"message":"surprise"}'))
+# Transient failures ----------------------------------------------------------
 
-  expect_error(
-    tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE),
-    class = "transferegovr_response_error"
-  )
+test_that("only the statuses worth retrying are transient", {
+  transient <- function(status) {
+    .tg_is_transient(httr2::response(status_code = status))
+  }
+
+  expect_true(transient(429L))
+  expect_true(transient(503L))
+  expect_false(transient(422L))
+  expect_false(transient(404L))
 })
 
-test_that("only transient statuses are retried", {
-  expect_true(.tg_is_transient(mock_json_response("[]", status = 429L)))
-  expect_true(.tg_is_transient(mock_json_response("[]", status = 503L)))
-  expect_true(.tg_is_transient(mock_json_response("[]", status = 504L)))
-  # A 400 is PostgREST rejecting the query and will fail identically every time.
-  expect_false(.tg_is_transient(mock_json_response("[]", status = 400L)))
-  expect_false(.tg_is_transient(mock_json_response("[]", status = 404L)))
+test_that("backoff stays inside its bounds", {
+  values <- vapply(1:10, .tg_backoff, numeric(1))
+
+  expect_true(all(values > 0))
+  expect_true(all(values <= 90))
 })
 
-test_that("backoff grows with the attempt and stays bounded", {
-  expect_true(all(vapply(1:10, function(i) .tg_backoff(i) <= 90, logical(1))))
-  expect_gt(
-    mean(vapply(1:50, function(i) .tg_backoff(4), numeric(1))),
-    mean(vapply(1:50, function(i) .tg_backoff(1), numeric(1)))
-  )
-})
+# URL length ------------------------------------------------------------------
 
-test_that("the base URL must be an HTTP or HTTPS URL", {
-  expect_error(
-    tg_get("ted", "plano_acao", .base_url = "ftp://x", .cache = FALSE),
-    class = "transferegovr_url_error"
-  )
+test_that("an over-long URL is refused with a readable message", {
+  # curl reports this as "Error in the HTTP2 framing layer", which says nothing
+  # about the query that caused it.
   expect_error(
     tg_get(
-      "ted", "plano_acao",
-      .base_url = c("https://a", "https://b"), .cache = FALSE
+      "parcerias", "proposta",
+      ds_objeto = strrep("x", .tg_max_url),
+      .progress = FALSE
     ),
     class = "transferegovr_url_error"
   )
+})
+
+# Freshness -------------------------------------------------------------------
+
+test_that("tg_updated_at() parses the module's timestamp", {
+  local_recorded_requests(
+    mock_json_response('{"data_ultima_atualizacao":"2026-08-03T00:00:00"}')
+  )
+
+  expect_equal(
+    tg_updated_at("parcerias"),
+    as.POSIXct("2026-08-03 00:00:00", tz = "UTC")
+  )
+})
+
+test_that("tg_updated_at() asks the module's own endpoint", {
+  recorded <- local_recorded_requests(
+    mock_json_response('{"data_ultima_atualizacao":"2026-08-03T00:00:00"}')
+  )
+
+  tg_updated_at("fundo_a_fundo")
+
+  expect_equal(
+    request_path(recorded$requests[[1]]),
+    "fundoafundo/data-atualizacao"
+  )
+})
+
+test_that("a response without the timestamp is an error", {
+  local_recorded_requests(mock_json_response("{}"))
+
   expect_error(
-    tg_get("ted", "plano_acao", .base_url = NA_character_, .cache = FALSE),
-    class = "transferegovr_url_error"
+    tg_updated_at("parcerias"),
+    class = "transferegovr_response_error"
   )
-})
-
-test_that("a trailing slash on the base URL does not double up in the path", {
-  recorded <- local_recorded_requests(mock_page(1, total = 1))
-
-  tg_get("ted", "plano_acao",
-    .limit = 1, .cache = FALSE,
-    .base_url = "https://api.transferegov.gestao.gov.br/"
-  )
-
-  url <- httr2::url_parse(recorded$requests[[1]]$url)
-  expect_equal(url$path, "/ted/plano_acao")
-})
-
-test_that("the base URL option is honoured", {
-  withr::local_options(transferegovr.base_url = "https://example.org")
-  expect_equal(tg_base_url(), "https://example.org")
-
-  recorded <- local_recorded_requests(mock_page(1, total = 1))
-  tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE)
-
-  url <- httr2::url_parse(recorded$requests[[1]]$url)
-  expect_equal(url$hostname, "example.org")
-})
-
-test_that("the user agent identifies the package", {
-  recorded <- local_recorded_requests(mock_page(1, total = 1))
-
-  tg_get("ted", "plano_acao", .limit = 1, .cache = FALSE)
-
-  expect_match(recorded$requests[[1]]$options$useragent, "transferegovr")
-})
-
-test_that("an over-long URL is reported as such, not as a network failure", {
-  # curl answers a URL this long with "Error in the HTTP2 framing layer", which
-  # says nothing about the query that caused it.
-  expect_error(
-    tg_get("ted", "plano_acao", id_plano_acao = in_(1:2000), .cache = FALSE),
-    "in_",
-    class = "transferegovr_url_error"
-  )
-})
-
-test_that("a normal request is nowhere near the URL limit", {
-  recorded <- local_recorded_requests(mock_page(1, total = 1))
-
-  tg_get("ted", "plano_acao",
-    id_plano_acao = in_(1:50), .limit = 1,
-    .cache = FALSE
-  )
-
-  expect_lt(nchar(recorded$requests[[1]]$url), .tg_max_url)
 })

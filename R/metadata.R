@@ -1,8 +1,8 @@
 # Schema access ---------------------------------------------------------------
 #
-# `.tg_schema`, `.tg_module_labels`, `.tg_module_aliases` and
-# `.tg_schema_built_at` live in R/sysdata.rda and are rebuilt by
-# data-raw/schema.R from the OpenAPI documents the APIs publish.
+# `.tg_schema` (including each module's `max_page_size`), `.tg_module_labels`,
+# `.tg_module_aliases` and `.tg_schema_built_at` live in R/sysdata.rda and are
+# rebuilt by data-raw/schema.R from the OpenAPI documents the APIs publish.
 
 .tg_match_module <- function(module, call = rlang::caller_env()) {
   if (!is.character(module) || length(module) != 1L || is.na(module)) {
@@ -47,11 +47,13 @@
   }
 
   tables <- names(.tg_schema[[module]]$tables)
-  key <- trimws(table)
+  # The endpoints are not consistent between modules about `-` and `_`, so both
+  # spellings resolve to the underscore form the package exposes.
+  key <- gsub("-", "_", trimws(table), fixed = TRUE)
 
   if (!key %in% tables) {
-    # The same table name exists in more than one module with different columns,
-    # so a miss is often a module mix-up rather than a typo.
+    # The same table name exists in more than one module with different
+    # columns, so a miss is often a module mix-up rather than a typo.
     elsewhere <- names(.tg_schema)[vapply(
       .tg_schema,
       function(m) key %in% names(m$tables),
@@ -86,33 +88,13 @@
   .tg_schema[[module]]$tables[[table]]$fields
 }
 
-# The order used for multi-page collection. Offset pagination over an unordered
-# query has no defined row order in Postgres, so pages could overlap or skip;
-# an explicit order makes the sequence reproducible. A declared primary key is a
-# total order. Failing that, identifier-like columns are the best available key,
-# and `.tg_check_complete()` still verifies the collected count afterwards.
-.tg_default_order <- function(module, table) {
-  fields <- .tg_table_fields(module, table)
-
-  keys <- fields$field[fields$primary_key]
-  if (length(keys) > 0L) {
-    return(paste0(keys, ".asc"))
-  }
-
-  identifiers <- fields$field[grepl("^(id|sq|co|nr|cd)_", fields$field)]
-  if (length(identifiers) > 0L) {
-    return(paste0(identifiers, ".asc"))
-  }
-
-  paste0(fields$field[[1L]], ".asc")
-}
-
 # Discovery -------------------------------------------------------------------
 
 #' List the TransfereGov API modules
 #'
 #' @return A tibble with one row per module: its name, the label used in this
-#'   documentation, the number of tables it publishes, and its API base URL.
+#'   documentation, the number of tables it publishes, the largest page it
+#'   serves in one request, and its API base URL.
 #' @export
 #' @family discovery
 #' @examples
@@ -127,7 +109,16 @@ tg_modules <- function() {
       .tg_schema[modules], function(m) length(m$tables), integer(1),
       USE.NAMES = FALSE
     ),
-    url = paste0(.tg_default_base_url(), "/", modules)
+    max_page_size = vapply(
+      .tg_schema[modules], function(m) m$max_page_size, integer(1),
+      USE.NAMES = FALSE
+    ),
+    url = vapply(
+      .tg_schema[modules],
+      function(m) paste0(m$base_url, "/", m$path),
+      character(1),
+      USE.NAMES = FALSE
+    )
   )
 }
 
@@ -142,24 +133,26 @@ tg_modulos <- tg_modules
 #' @param counts If `TRUE`, adds a `rows` column with the number of rows each
 #'   table currently holds. This is the only part of this function that needs a
 #'   network connection: it makes one request per table, so `tg_tables(counts =
-#'   TRUE)` with no module makes forty-eight. Responses are cached.
+#'   TRUE)` with no module makes seventy-four. Responses are cached.
 #' @param modulo Portuguese alias for `module`, available in [tg_tabelas()] and
 #'   [tg_campos()].
 #' @param contagens Portuguese alias for `counts`, available only in
 #'   [tg_tabelas()].
 #'
-#' @return A tibble with one row per table: its module, name, number of columns,
-#'   the primary key when the API declares one, and the description published in
-#'   the API schema. With `counts = TRUE`, also the current number of rows.
+#' @return A tibble with one row per table: its module, name, the endpoint path
+#'   it maps to, its number of columns and filterable parameters, and the
+#'   description published in the API schema. With `counts = TRUE`, also the
+#'   current number of rows.
 #' @export
 #' @family discovery
 #' @examples
-#' tg_tables("ted")
+#' tg_tables("parcerias")
 #' tg_tables()
 #'
 #' if (interactive()) {
 #'   # How big is everything, largest first?
-#'   tg_tables(counts = TRUE)[order(-tg_tables(counts = TRUE)$rows), ]
+#'   sizes <- tg_tables(counts = TRUE)
+#'   sizes[order(-sizes$rows), ]
 #' }
 tg_tables <- function(module = NULL, counts = FALSE) {
   modules <- if (is.null(module)) {
@@ -177,23 +170,18 @@ tg_tables <- function(module = NULL, counts = FALSE) {
     tibble::tibble(
       module = m,
       table = names(tables),
+      path = vapply(
+        tables, function(t) t$path, character(1), USE.NAMES = FALSE
+      ),
       columns = vapply(tables, function(t) nrow(t$fields), integer(1),
         USE.NAMES = FALSE
       ),
-      primary_key = vapply(
-        tables,
-        function(t) {
-          keys <- t$fields$field[t$fields$primary_key]
-          if (length(keys) == 0L) {
-            NA_character_
-          } else {
-            paste(keys, collapse = ", ")
-          }
-        },
-        character(1),
+      params = vapply(tables, function(t) nrow(t$params), integer(1),
         USE.NAMES = FALSE
       ),
-      description = vapply(tables, function(t) t$description %||% NA_character_,
+      description = vapply(
+        tables,
+        function(t) t$description %||% t$summary %||% NA_character_,
         character(1),
         USE.NAMES = FALSE
       )
@@ -216,7 +204,7 @@ tg_tabelas <- function(modulo = NULL, contagens = FALSE) {
   tg_tables(modulo, contagens)
 }
 
-# One request per table. A progress bar because forty-eight throttled requests
+# One request per table. A progress bar because seventy-four throttled requests
 # take the better part of a minute the first time, and none after that while
 # the cache is warm.
 .tg_row_counts <- function(modules, tables) {
@@ -238,32 +226,63 @@ tg_tabelas <- function(modulo = NULL, contagens = FALSE) {
 
 #' List the columns of a table
 #'
-#' Every column name may be used as a filter in [tg_get()] and [tg_count()], in
-#' `.select`, and in `.order`. Column names and categorical values stay in
-#' Portuguese because they are the API's own contract.
+#' Column names stay in Portuguese because they are the API's own contract.
+#' Not every column can be filtered on; [tg_params()] lists the ones that can.
 #'
 #' @inheritParams tg_tables
 #' @param table A table name from [tg_tables()].
+#' @param nested The name of a list column, to describe the columns of the
+#'   objects inside it instead of the table's own. `NULL`, the default,
+#'   describes the table.
 #' @param tabela Portuguese alias for `table`, available only in
 #'   [tg_campos()].
 #'
 #' @return A tibble with one row per column: its name, the R type the package
-#'   coerces it to, the Postgres type the API reports, whether it is part of the
-#'   declared primary key, and its description.
+#'   coerces it to, the type the API declares, the sub-schema it nests when it
+#'   is a list column, and its description.
 #' @export
 #' @family discovery
 #' @examples
-#' tg_fields("ted", "plano_acao")
-tg_fields <- function(module, table) {
+#' tg_fields("parcerias", "proposta")
+#'
+#' # A list column, and what it holds
+#' fields <- tg_fields("parcerias", "proposta")
+#' fields[!is.na(fields$nested), c("field", "nested")]
+#' tg_fields("parcerias", "proposta", nested = "intervenientes_proposta")
+tg_fields <- function(module, table, nested = NULL) {
   module <- .tg_match_module(module)
   table <- .tg_match_table(module, table)
-  .tg_table_fields(module, table)
+
+  if (is.null(nested)) {
+    return(.tg_table_fields(module, table))
+  }
+
+  available <- .tg_schema[[module]]$tables[[table]]$nested
+
+  if (
+    !is.character(nested) || length(nested) != 1L || is.na(nested) ||
+      !nested %in% names(available)
+  ) {
+    cli::cli_abort(
+      c(
+        "{.arg nested} must name a list column of {.val {table}}.",
+        "i" = if (length(available) == 0L) {
+          "That table has none."
+        } else {
+          "It has {.val {names(available)}}."
+        }
+      ),
+      class = "transferegovr_schema_error"
+    )
+  }
+
+  available[[nested]]
 }
 
 #' @rdname tg_fields
 #' @export
-tg_campos <- function(modulo, tabela) {
-  tg_fields(modulo, tabela)
+tg_campos <- function(modulo, tabela, nested = NULL) {
+  tg_fields(modulo, tabela, nested)
 }
 
 #' Report the frozen schema's build date

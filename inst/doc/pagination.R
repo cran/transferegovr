@@ -1,81 +1,114 @@
 ## ----include = FALSE----------------------------------------------------------
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 
-## ----setup--------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 # library(transferegovr)
 
 ## -----------------------------------------------------------------------------
-# plans <- tg_get("ted", "plano_acao", .limit = 2500)
-# 
-# nrow(plans)
-# #> [1] 2500
-# tg_metadata(plans)$pages
-# #> [1] 3
+# sizes <- tg_tables(counts = TRUE)
+# sizes[order(-sizes$rows), c("module", "table", "columns", "rows")]
+# #> # A tibble: 74 × 4
+# #>    module      table                                   columns    rows
+# #>    <chr>       <chr>                                     <int>   <dbl>
+# #>  1 parcerias   extrato_bancario                             13 1362980
+# #>  2 fundoafundo gestao_financeira_lancamentos                28 1160094
+# #>  3 especiais   gestao_financeira_lancamentos_especiais      34  735012
+# #>  4 especiais   planos_trabalho_historico                     5  461164
+# #>  5 parcerias   item_proposta                                14  428078
+# #>  …
 
 ## -----------------------------------------------------------------------------
 # tg_count("fundoafundo", "gestao_financeira_lancamentos")
-# #> [1] 1115444
+# #> [1] 1160094
 
 ## -----------------------------------------------------------------------------
-# tg_tables(counts = TRUE) |>
-#   dplyr::arrange(desc(rows))
-# #> # A tibble: 48 × 6
-# #>   module                  table                           columns    rows …
-# #>   <chr>                   <chr>                             <int>   <dbl>
-# #> 1 fundoafundo             gestao_financeira_lancamentos        32 1115444
-# #> 2 fundoafundo             gestao_financeira_subtransacoes      16  377666
-# #> 3 transferenciasespeciais historico_pagamento_especial          5  281163
-# #> 4 fundoafundo             plano_acao_historico                  5  183379
-# #> 5 transferenciasespeciais meta_especial                        16  156016
-# #> # ℹ 43 more rows
+# tg_count("parcerias", "proposta")
+# #> [1] 89415
+# tg_count("parcerias", "proposta", sg_uf_recebedor = "PE")
+# #> [1] 3258
 
 ## -----------------------------------------------------------------------------
-# tg_get(
-#   "fundoafundo", "gestao_financeira_lancamentos",
-#   .select = c(
-#     "id_lancamento_gestao_financeira",
-#     "id_plano_acao",
-#     "data_lancamento_gestao_financeira",
-#     "valor_lancamento_gestao_financeira"
-#   ),
-#   .limit = Inf
-# )
+# tg_get("parcerias", "proposta", .page_size = 201)
+# #> Error in `tg_get()`:
+# #> ! `.page_size` must be a whole number between 1 and 200.
 
 ## -----------------------------------------------------------------------------
-# tg_count(
-#   "fundoafundo", "gestao_financeira_lancamentos",
-#   data_lancamento_gestao_financeira = list(gte("2025-01-01"), lt("2026-01-01"))
-# )
+# rows <- tg_count("parcerias", "extrato_bancario")
+# ceiling(rows / 200)
+# #> [1] 6815
 
 ## -----------------------------------------------------------------------------
-# tg_metadata(plans)$order
-# #> [1] "id_plano_acao.asc" "id_programa.asc"   "sq_instrumento.asc"
+# options(transferegovr.requests_per_minute = 120)
 
 ## -----------------------------------------------------------------------------
-# tg_get("ted", "plano_acao", .order = "vl_total_plano_acao.desc", .limit = 2500)
+# tg_get("especiais", "meta_especiais", .limit = 450)
 
 ## -----------------------------------------------------------------------------
-# tg_get(
-#   "ted", "plano_acao",
-#   .order = c("vl_total_plano_acao.desc", "id_plano_acao.asc"),
-#   .limit = 2500
-# )
+# tg_get("especiais", "meta_especiais", .limit = 100, .offset = 137,
+#        .page_size = 60)
 
 ## -----------------------------------------------------------------------------
-# first <- tg_get("ted", "plano_acao_etapa", .limit = 20000)
-# rest <- tg_get("ted", "plano_acao_etapa", .limit = Inf, .offset = 20000)
+# programas <- tg_get("especiais", "programas_especiais", .limit = Inf)
 
 ## -----------------------------------------------------------------------------
-# tg_cache_dir()
-# #> [1] "/tmp/RtmpXXXX/transferegovr-cache"
+# metas <- tg_get("especiais", "meta_especiais", .limit = 450)
+# 
+# tg_metadata(metas)
+# #> $module
+# #> [1] "especiais"
+# #> $table
+# #> [1] "meta_especiais"
+# #> $total_rows
+# #> [1] 156193
+# #> $rows_returned
+# #> [1] 450
+# #> $pages
+# #> [1] 3
+# #> …
+
+## -----------------------------------------------------------------------------
+# strip <- function(x) {
+#   x <- as.data.frame(x)
+#   attr(x, "transferegovr_metadata") <- NULL
+#   rownames(x) <- NULL
+#   x
+# }
+# 
+# big <- tg_get("especiais", "meta_especiais", .limit = 450, .page_size = 200)
+# small <- tg_get("especiais", "meta_especiais", .limit = 450, .page_size = 50)
+# 
+# identical(strip(big), strip(small))
+# #> [1] TRUE
+
+## -----------------------------------------------------------------------------
+# first <- tg_get("especiais", "meta_especiais", .limit = 450)
+# again <- tg_get("especiais", "meta_especiais", .limit = 450)
+# 
+# tg_metadata(again)$cached
+# #> [1] TRUE
 
 ## -----------------------------------------------------------------------------
 # tg_cache_dir(tools::R_user_dir("transferegovr", "cache"))
 
 ## -----------------------------------------------------------------------------
-# options(
-#   transferegovr.requests_per_minute = 30,
-#   transferegovr.max_tries = 6,
-#   transferegovr.timeout = 120
-# )
+# tg_updated_at("fundoafundo")
+# #> [1] "2026-09-28 06:02:02 UTC"
+
+## -----------------------------------------------------------------------------
+# library(purrr)
+# 
+# total <- tg_count("fundoafundo", "gestao_financeira_lancamentos")
+# slice_size <- 20000
+# starts <- seq(0, total - 1, by = slice_size)
+# 
+# walk(starts, function(start) {
+#   file <- sprintf("lancamentos-%08d.rds", start)
+#   if (file.exists(file)) return(invisible(NULL))
+# 
+#   rows <- tg_get(
+#     "fundoafundo", "gestao_financeira_lancamentos",
+#     .limit = slice_size, .offset = start
+#   )
+#   saveRDS(rows, file)
+# })
 

@@ -5,48 +5,59 @@
 
 mock_json_response <- function(body,
                                status = 200L,
-                               content_range = NULL,
                                content_type = "application/json") {
-  headers <- list(`Content-Type` = content_type)
-
-  if (!is.null(content_range)) {
-    headers[["Content-Range"]] <- content_range
-  }
-
   httr2::response(
     status_code = status,
-    url = "https://api.transferegov.gestao.gov.br/ted/plano_acao",
-    headers = headers,
+    url = "https://api-publica.transferegov.gestao.gov.br/parcerias/parceria",
+    headers = list(`Content-Type` = content_type),
     body = charToRaw(body)
   )
 }
 
-# One page of `n` rows of `ted/plano_acao`, with identifiers starting at `from`.
-mock_page <- function(n, from = 1L, total = NULL, first = from - 1L) {
+# One page of `n` rows of `parcerias/parceria`, with identifiers starting at
+# `from`, wrapped in the envelope every table endpoint answers with.
+mock_page <- function(n, from = 1L, total = n, page = 1L, page_size = 200L) {
   rows <- vapply(
     seq_len(n),
     function(i) {
       sprintf(
         paste0(
-          '{"id_plano_acao":%d,"aa_ano_plano_acao":2024,',
-          '"vl_total_plano_acao":%d.5,"dt_inicio_vigencia":"2024-01-0%d",',
-          '"in_forma_execucao_direta":true,"tx_objeto_plano_acao":"row %d"}'
+          '{"id_parceria":%d,"cd_parceria":%s,"id_proposta":%d,',
+          '"in_situacao_parceria":"Aprovada",',
+          '"dh_assinatura":"2025-01-0%dT12:00:00",',
+          '"tx_justificativa":null,"publicacoes_parceria":[]}'
         ),
-        from + i - 1L, (from + i - 1L) * 10L, (i %% 9L) + 1L, from + i - 1L
+        from + i - 1L,
+        # Beyond .Machine$integer.max on purpose: `cd_parceria` genuinely is,
+        # and `%d` cannot render it.
+        format(202500000000 + from + i - 1L, scientific = FALSE),
+        from + i - 1L,
+        (i %% 9L) + 1L
       )
     },
     character(1)
   )
 
-  range <- if (is.null(total)) {
-    sprintf("%d-%d/*", first, first + n - 1L)
-  } else {
-    sprintf("%d-%d/%d", first, first + n - 1L, total)
-  }
+  mock_envelope(
+    paste0("[", paste(rows, collapse = ","), "]"),
+    total = total, page = page, page_size = page_size
+  )
+}
+
+# The paginated envelope, around whatever `data` is given as literal JSON.
+mock_envelope <- function(data, total = 0L, page = 1L, page_size = 200L,
+                          pages = NULL, status = 200L) {
+  pages <- pages %||% ceiling(total / max(page_size, 1L))
 
   mock_json_response(
-    paste0("[", paste(rows, collapse = ","), "]"),
-    content_range = range
+    sprintf(
+      paste0(
+        '{"data":%s,"total_pages":%d,"total_items":%d,',
+        '"page_number":%d,"page_size":%d}'
+      ),
+      data, pages, total, page, page_size
+    ),
+    status = status
   )
 }
 
@@ -85,8 +96,7 @@ local_recorded_requests <- function(responses, env = parent.frame()) {
   recorded
 }
 
-# The query string of a recorded request, as a named character vector. Repeated
-# names are kept, because two conditions on one column are two parameters.
+# The query string of a recorded request, as a named character vector.
 request_query <- function(request) {
   query <- httr2::url_parse(request$url)$query
 
@@ -97,6 +107,16 @@ request_query <- function(request) {
   vapply(query, as.character, character(1))
 }
 
-filter_string <- function(...) {
-  unlist(.tg_eval_filters(rlang::quos(...)), use.names = TRUE)
+# The path of a recorded request, without the leading slash.
+request_path <- function(request) {
+  sub("^/", "", httr2::url_parse(request$url)$path)
+}
+
+# The encoded filters a set of arguments produces, checked against the frozen
+# parameters of `parcerias/parceria` unless another table is named.
+filter_string <- function(..., module = "parcerias", table = "parceria") {
+  unlist(
+    .tg_eval_filters(rlang::quos(...), .tg_table_params(module, table)),
+    use.names = TRUE
+  )
 }

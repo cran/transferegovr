@@ -11,195 +11,230 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-```{r setup}
+These tables are large and the page size is small. This vignette is about
+getting all of a table without losing rows to pagination, and about knowing what
+a download will cost before starting it.
+
+```{r}
 library(transferegovr)
 ```
 
-## The cap you cannot see
+## Measure first
 
-The service returns at most **1000 rows per request**, however many are asked
-for, and it does so without complaint: ask for a hundred thousand and you are
-given a thousand and a `206 Partial Content`. Nothing in the body says the
-result was truncated. Only the `Content-Range` header does.
-
-This package reads that header, which is why `.limit` counts rows rather than
-requests, and why anything above 1000 is collected page by page:
+The seventy-four tables hold about 7.5 million rows between them, spread very
+unevenly — from none at all in `especiais/orgaos_analises_pendentes_especiais`
+to 1,362,980 in `parcerias/extrato_bancario`.
 
 ```{r}
-plans <- tg_get("ted", "plano_acao", .limit = 2500)
-
-nrow(plans)
-#> [1] 2500
-tg_metadata(plans)$pages
-#> [1] 3
+sizes <- tg_tables(counts = TRUE)
+sizes[order(-sizes$rows), c("module", "table", "columns", "rows")]
+#> # A tibble: 74 × 4
+#>    module      table                                   columns    rows
+#>    <chr>       <chr>                                     <int>   <dbl>
+#>  1 parcerias   extrato_bancario                             13 1362980
+#>  2 fundoafundo gestao_financeira_lancamentos                28 1160094
+#>  3 especiais   gestao_financeira_lancamentos_especiais      34  735012
+#>  4 especiais   planos_trabalho_historico                     5  461164
+#>  5 parcerias   item_proposta                                14  428078
+#>  …
 ```
 
-`.page_size` is capped at 1000 for the same reason. A larger value would be
-accepted by the package, silently truncated by the service, and the shortfall
-would look like missing data.
-
-## Ask how big it is first
+That call makes seventy-four requests, and caches them. For a single table:
 
 ```{r}
 tg_count("fundoafundo", "gestao_financeira_lancamentos")
-#> [1] 1115444
+#> [1] 1160094
 ```
 
-To size everything at once, `tg_tables()` takes a `counts` argument. It is the
-only part of that function that touches the network — one request per table,
-cached, so the second call in a session is free:
+`tg_count()` takes the same filters as `tg_get()`, so you can size the thing you
+actually want rather than the whole table:
 
 ```{r}
-tg_tables(counts = TRUE) |>
-  dplyr::arrange(desc(rows))
-#> # A tibble: 48 × 6
-#>   module                  table                           columns    rows …
-#>   <chr>                   <chr>                             <int>   <dbl>
-#> 1 fundoafundo             gestao_financeira_lancamentos        32 1115444
-#> 2 fundoafundo             gestao_financeira_subtransacoes      16  377666
-#> 3 transferenciasespeciais historico_pagamento_especial          5  281163
-#> 4 fundoafundo             plano_acao_historico                  5  183379
-#> 5 transferenciasespeciais meta_especial                        16  156016
-#> # ℹ 43 more rows
+tg_count("parcerias", "proposta")
+#> [1] 89415
+tg_count("parcerias", "proposta", sg_uf_recebedor = "PE")
+#> [1] 3258
 ```
 
-A million rows is over a thousand requests. The package throttles itself to
-sixty requests a minute by default, so that download takes something like twenty
-minutes. That is usually the wrong shape for the question being asked.
+## What a page costs
 
-## Narrow first, then collect
-
-Two things make a large query smaller, and both happen on the server:
-
-**Select only the columns you need.** `gestao_financeira_lancamentos` has 32
-columns; if you want four of them, the other 28 need never cross the network.
+Each module caps a page at its own size: **200 rows** in `especiais` and
+`parcerias`, **1000** in `fundoafundo` and `ted`. `tg_modules()` reports it, and
+`.page_size` defaults to it. Unlike some APIs, these do not silently truncate a
+larger request — one row over the cap is a `422`, and the package refuses it
+before sending:
 
 ```{r}
-tg_get(
-  "fundoafundo", "gestao_financeira_lancamentos",
-  .select = c(
-    "id_lancamento_gestao_financeira",
-    "id_plano_acao",
-    "data_lancamento_gestao_financeira",
-    "valor_lancamento_gestao_financeira"
-  ),
-  .limit = Inf
-)
+tg_get("parcerias", "proposta", .page_size = 201)
+#> Error in `tg_get()`:
+#> ! `.page_size` must be a whole number between 1 and 200.
 ```
 
-**Filter before you fetch.** A year's worth of a table is usually what was
-wanted anyway:
+So the arithmetic is simple and worth doing, and the cap matters as much as the
+size. The largest table, `parcerias/extrato_bancario`, is
+`ceiling(1362980 / 200)` = **6,815 requests** — at the default throttle of sixty
+a minute, nearly two hours. The second largest is barely smaller but lives in a
+module that serves pages of 1000, so it takes 1,161 requests, about twenty
+minutes.
 
 ```{r}
-tg_count(
-  "fundoafundo", "gestao_financeira_lancamentos",
-  data_lancamento_gestao_financeira = list(gte("2025-01-01"), lt("2026-01-01"))
-)
+rows <- tg_count("parcerias", "extrato_bancario")
+ceiling(rows / 200)
+#> [1] 6815
 ```
 
-## Why the order matters
-
-Offset pagination asks for rows 0–999, then 1000–1999, and so on. In Postgres a
-query without `ORDER BY` has **no defined row order**: the planner is free to
-return rows differently between two executions, and if it does, page two can
-repeat rows from page one and skip others entirely. The result has the right
-number of rows and the wrong contents.
-
-So every request this package makes carries an explicit order. By default it is
-the table's primary key where the API declares one, and its identifier columns
-otherwise:
+If you genuinely need a table that size, consider whether a filter narrows it
+first, and raise the throttle deliberately rather than by accident:
 
 ```{r}
-tg_metadata(plans)$order
-#> [1] "id_plano_acao.asc" "id_programa.asc"   "sq_instrumento.asc"
+options(transferegovr.requests_per_minute = 120)
 ```
 
-You can supply your own, and pagination will use it:
+## Limits and offsets count rows
+
+`.limit` and `.offset` are in rows, not pages, whatever `.page_size` is set to.
 
 ```{r}
-tg_get("ted", "plano_acao", .order = "vl_total_plano_acao.desc", .limit = 2500)
+tg_get("especiais", "meta_especiais", .limit = 450)
 ```
 
-Bear in mind that ordering by a column with many ties leaves the order within
-each tie undefined, which brings the problem back. Prefer an identifier, or add
-one as a tiebreaker:
+That is three requests: 200, 200, 50 — the last page is trimmed to the limit.
+An offset that falls inside a page is handled by fetching the page it lands in
+and dropping the rows before it:
 
 ```{r}
-tg_get(
-  "ted", "plano_acao",
-  .order = c("vl_total_plano_acao.desc", "id_plano_acao.asc"),
-  .limit = 2500
-)
+tg_get("especiais", "meta_especiais", .limit = 100, .offset = 137,
+       .page_size = 60)
 ```
 
-## Resuming, and taking it in pieces
-
-`.offset` skips rows that have already been collected, so a long download can be
-taken in sittings:
+`Inf` collects everything that matches:
 
 ```{r}
-first <- tg_get("ted", "plano_acao_etapa", .limit = 20000)
-rest <- tg_get("ted", "plano_acao_etapa", .limit = Inf, .offset = 20000)
+programas <- tg_get("especiais", "programas_especiais", .limit = Inf)
 ```
 
-Both parts must use the same order, or they are pages of two different
-sequences. The default order is deterministic for a given table, so leaving
-`.order` alone is the safe choice here.
+## Checking what you got
 
-## When the count and the contents disagree
+Every result carries the pagination state the API reported:
 
-The number of rows collected is checked against the total the API reported:
+```{r}
+metas <- tg_get("especiais", "meta_especiais", .limit = 450)
+
+tg_metadata(metas)
+#> $module
+#> [1] "especiais"
+#> $table
+#> [1] "meta_especiais"
+#> $total_rows
+#> [1] 156193
+#> $rows_returned
+#> [1] 450
+#> $pages
+#> [1] 3
+#> …
+```
+
+`total_rows` is how many rows matched, `rows_returned` how many you have. If
+collection ends short of what the API said it would return, that is a warning
+rather than a silent truncation:
 
 ```
-Warning: Collected 4820 rows where the API reported 4900.
-i The table may have changed while it was being read.
-i Check `tg_metadata()` on the result.
+Warning: Collected 448 rows where the API reported 450.
+ℹ The table may have changed while it was being read.
 ```
 
-This is a real possibility on a long download, since the underlying tables are
-refreshed daily. It is a warning rather than an error because a nearly complete
-result is still worth having — but it must be visible, and `tg_metadata()`
-records both numbers so the gap stays in the data rather than only in the
-console.
+## Why the row order is safe to rely on
+
+These APIs publish no ordering parameter. Page two is simply "page two", and
+whether that is a well-defined thing depends on the server keeping a stable
+order between requests — which nothing in the documentation promises.
+
+Postgres makes no such promise in general: a query without `ORDER BY` may return
+rows in a different order between executions, and under offset pagination that
+means page two can repeat rows from page one and skip others entirely. A row
+count would not reveal it. Two pages of 200 that overlap by 40 rows still add up
+to 400.
+
+So it was tested rather than assumed. The check is to fetch the same rows at two
+different page sizes and compare them as sequences:
+
+```{r}
+strip <- function(x) {
+  x <- as.data.frame(x)
+  attr(x, "transferegovr_metadata") <- NULL
+  rownames(x) <- NULL
+  x
+}
+
+big <- tg_get("especiais", "meta_especiais", .limit = 450, .page_size = 200)
+small <- tg_get("especiais", "meta_especiais", .limit = 450, .page_size = 50)
+
+identical(strip(big), strip(small))
+#> [1] TRUE
+```
+
+Three requests and nine requests, cutting the same 450 rows at different
+boundaries, produce the same rows in the same order. That is what rules out both
+overlap and skipping.
+
+The same comparison holds 100,000 rows deep, across repeated calls, on tables
+with no natural key, and on tables with nested columns. `test-live.R` re-runs all
+of it against the real services, so a change upstream shows up as a failing test
+rather than as quietly wrong data.
 
 ## Caching
 
-Every request is cached for an hour, so re-running an analysis does not re-fetch
-what it already has. Each page is cached separately, so an interrupted
-collection resumes from the network only where it has to.
+Responses are cached for an hour, so re-running a collection during a session
+costs nothing:
 
 ```{r}
-tg_cache_dir()
-#> [1] "/tmp/RtmpXXXX/transferegovr-cache"
+first <- tg_get("especiais", "meta_especiais", .limit = 450)
+again <- tg_get("especiais", "meta_especiais", .limit = 450)
+
+tg_metadata(again)$cached
+#> [1] TRUE
 ```
 
-The default is the session's temporary directory, so nothing outlives the
-session unless you ask for it:
+The default cache lives in the session's temporary directory, so nothing is
+written outside the session unless you ask. For a long collection you will want
+it to survive:
 
 ```{r}
 tg_cache_dir(tools::R_user_dir("transferegovr", "cache"))
 ```
 
-Set `TRANSFEREGOVR_CACHE_DIR` in `.Renviron` to make that permanent, and adjust
-the lifetime with `options(transferegovr.cache_ttl = 86400)` — the data behind
-these APIs is refreshed once a day, so an hour is conservative.
-
-`tg_metadata(x)$cached` tells you whether a result came from the network or from
-disk.
-
-## Rate limiting and retries
-
-Requests are throttled to sixty a minute and retried up to four times on a 429
-or a 5xx, with exponential backoff and jitter. A 400 is not retried: it means
-the service rejected the query itself and will reject it identically next time.
-
-Both are adjustable, but the defaults exist to keep the package a considerate
-client of a public service:
+The APIs send no `ETag`, `Cache-Control` or `Last-Modified`, so HTTP caching
+would store nothing — this cache is the package's own. Use `tg_updated_at()` to
+decide when a cached copy is stale:
 
 ```{r}
-options(
-  transferegovr.requests_per_minute = 30,
-  transferegovr.max_tries = 6,
-  transferegovr.timeout = 120
-)
+tg_updated_at("fundoafundo")
+#> [1] "2026-09-28 06:02:02 UTC"
 ```
+
+## A pattern for very large tables
+
+For anything in the hundreds of thousands, collect in slices and write each one
+out, so an interrupted run does not start over:
+
+```{r}
+library(purrr)
+
+total <- tg_count("fundoafundo", "gestao_financeira_lancamentos")
+slice_size <- 20000
+starts <- seq(0, total - 1, by = slice_size)
+
+walk(starts, function(start) {
+  file <- sprintf("lancamentos-%08d.rds", start)
+  if (file.exists(file)) return(invisible(NULL))
+
+  rows <- tg_get(
+    "fundoafundo", "gestao_financeira_lancamentos",
+    .limit = slice_size, .offset = start
+  )
+  saveRDS(rows, file)
+})
+```
+
+Because the order is stable, the slices reassemble into the whole table without
+gaps or repeats.
