@@ -354,10 +354,78 @@ query parameters, and nothing else — no primary keys, no foreign keys.
 <code>tg_fields()</code> therefore cannot tell you what joins to
 what.</p>
 <p>The relationships below come from the data models the government
-publishes alongside the APIs, at <a href="https://www.gov.br/transferegov/pt-br/ferramentas-gestao/dados-abertos" class="uri">https://www.gov.br/transferegov/pt-br/ferramentas-gestao/dados-abertos</a>.
-The convention is regular enough to follow without them: a column named
-<code>id_x</code> in table B refers to the row of table X whose own
-<code>id_x</code> matches.</p>
+publishes alongside the APIs, at <a href="https://www.gov.br/transferegov/pt-br/ferramentas-gestao/dados-abertos" class="uri">https://www.gov.br/transferegov/pt-br/ferramentas-gestao/dados-abertos</a>,
+and, where a model does not document a link (all of
+<code>discricionarias</code>, and the newest tables elsewhere), from
+checking the data itself. The convention is regular enough to follow
+either way: a column named <code>id_x</code> in table B refers to the
+row of table X whose own <code>id_x</code> matches.</p>
+</div>
+<div id="discricionarias" class="section level2">
+<h2>discricionarias</h2>
+<p>Discretionary and legal transfers have two clusters: the proposal and
+its execution, and the Novo PAC selection process, bridged by
+<code>proposta_formalizacao_pac</code>. Every link below was checked
+against the data by sampling identifiers and looking up their
+parents.</p>
+<pre><code>proponentes ──&lt; propostas ──&lt; meta_crono_fisico
+                   │
+                   ├──&lt; plano_aplicado_detalhado
+                   ├──&lt; consorcios
+                   └──&lt; justificativas_proposta
+
+todos_programas ──&lt; propostas_selecao_pac ──&lt; perguntas_respostas_selecao_pac
+       │                    │
+       │                    └──&lt; proposta_formalizacao_pac &gt;── propostas
+       └──&lt; apoiadores_emendas_programas
+
+propostas_canceladas</code></pre>
+<p>The join columns are <code>id_proposta</code>,
+<code>id_proponente</code>, <code>id_programa</code> and
+<code>id_proposta_selecao_pac</code>, each under the same name on both
+sides.</p>
+<p>Three things to know before joining here:</p>
+<ul>
+<li><strong>A cancelled proposal leaves <code>propostas</code>.</strong>
+The two tables have the same shape and <em>disjoint</em> identifiers —
+of fifty sampled cancelled proposals, none was still in
+<code>propostas</code>. A complete history needs both.</li>
+<li><strong><code>todos_programas</code> is a view with a join already
+baked in</strong>: one row per program <em>and</em> proposal (1.26
+million rows, but a 200-row page holds only a handful of distinct
+<code>id_programa</code>). It is also the only bridge from a proposal to
+its program — <code>propostas</code> itself carries no
+<code>id_programa</code> — so deduplicate it before joining the other
+way.</li>
+<li><strong><code>propostas_canceladas</code> cannot be paged from the
+start at full size.</strong> As of October 2026 it holds a row the
+service cannot serialize (its 71st), and any page containing that row is
+an HTTP 500. A smaller <code>.page_size</code>, an <code>.offset</code>
+past it, or a filter that excludes it gets around the defect.</li>
+</ul>
+<p>The PAC trail runs proponent → selection → formalization → proposal,
+and every identifier on it takes a list, so each hop is one request per
+200 values:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>pernambuco <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;discricionarias&quot;</span>, <span class="st">&quot;proponentes&quot;</span>,</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>                     <span class="at">uf_proponente =</span> <span class="st">&quot;PE&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>selecao <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;discricionarias&quot;</span>, <span class="st">&quot;propostas_selecao_pac&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>                  <span class="at">id_proponente =</span> <span class="fu">head</span>(pernambuco<span class="sc">$</span>id_proponente, <span class="dv">200</span>),</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>                  <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>formalizacao <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;discricionarias&quot;</span>, <span class="st">&quot;proposta_formalizacao_pac&quot;</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>                       <span class="at">id_proposta_selecao_pac =</span></span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>                         <span class="fu">head</span>(selecao<span class="sc">$</span>id_proposta_selecao_pac, <span class="dv">200</span>),</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>                       <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a>propostas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;discricionarias&quot;</span>, <span class="st">&quot;propostas&quot;</span>,</span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>                    <span class="at">id_proposta =</span> <span class="fu">head</span>(formalizacao<span class="sc">$</span>id_proposta, <span class="dv">200</span>),</span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a>                    <span class="at">.limit =</span> <span class="cn">Inf</span>)</span></code></pre></div>
+<p>Not every formalization resolves: in a sample of one hundred, one
+<code>id_proposta</code> found no row in <code>propostas</code> — see
+“Joins that do not fully resolve” below.
+<code>justificativas_proposta</code> was empty when this was written, so
+its link is drawn from its column names alone.</p>
 </div>
 <div id="especiais" class="section level2">
 <h2>especiais</h2>
@@ -378,7 +446,10 @@ The convention is regular enough to follow without them: a column named
                               │                 └──&lt; ordens_pagamentos_ordens_bancarias_especiais
                               ├──&lt; planos_acao_historico_especiais
                               ├──&lt; relatorios_gestao_especiais
+                              ├──&lt; devolucao_especiais
                               └──&lt; relatorios_gestao_novos_especiais
+                                       ├──&lt; relatorios_gestao_analise_especiais
+                                       └──&lt; relatorios_gestao_documento_liquidacao_especiais
 
 saldo_conta_gestao_financeira_especiais ──&lt; gestao_financeira_lancamentos_especiais
                                                   └──&lt; gestao_financeira_subtransacoes_especiais</code></pre>
@@ -387,7 +458,13 @@ saldo_conta_gestao_financeira_especiais ──&lt; gestao_financeira_lancamentos
 <code>id_empenho</code>, <code>id_dh</code>,
 <code>id_beneficiario</code>, <code>id_programa</code>,
 <code>id_agencia_conta</code>,
-<code>id_lancamento_gestao_financeira</code>.</p>
+<code>id_lancamento_gestao_financeira</code>,
+<code>id_relatorio_gestao_novo</code>.</p>
+<p>The three tables published in September 2026 — returned funds and the
+two report tables under <code>relatorios_gestao_novos_especiais</code> —
+are not in the government’s data model yet. Their links above were
+checked against the data instead: every sampled identifier found its
+parent.</p>
 <p>The goals and the public-policy area hang off the executor rather
 than off the plan: <code>meta_especiais</code> and
 <code>finalidade_especiais</code> both key on
@@ -396,13 +473,13 @@ than off the plan: <code>meta_especiais</code> and
 <code>id_beneficiario</code>; the name, CNPJ and state are in
 <code>beneficiarios_especiais</code>. There is no way to filter action
 plans by state directly — you filter the beneficiaries and join:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>beneficiarios <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;beneficiarios_especiais&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>pernambuco <span class="ot">&lt;-</span> beneficiarios <span class="sc">|&gt;</span></span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="fu">filter</span>(uf_beneficiario <span class="sc">==</span> <span class="st">&quot;PE&quot;</span>)</span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>planos <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;planos_acao_especiais&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>) <span class="sc">|&gt;</span></span>
-<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="fu">semi_join</span>(pernambuco, <span class="at">by =</span> <span class="st">&quot;id_beneficiario&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>beneficiarios <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;beneficiarios_especiais&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>pernambuco <span class="ot">&lt;-</span> beneficiarios <span class="sc">|&gt;</span></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="fu">filter</span>(uf_beneficiario <span class="sc">==</span> <span class="st">&quot;PE&quot;</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>planos <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;planos_acao_especiais&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>) <span class="sc">|&gt;</span></span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>  <span class="fu">semi_join</span>(pernambuco, <span class="at">by =</span> <span class="st">&quot;id_beneficiario&quot;</span>)</span></code></pre></div>
 <p><code>beneficiarios_especiais</code> has five columns and is small
 enough to take whole, which makes this cheaper than it looks.</p>
 </div>
@@ -429,11 +506,11 @@ enough to take whole, which makes this cheaper than it looks.</p>
 gestao_financeira_lancamentos ──&lt; gestao_financeira_subtransacoes</code></pre>
 <p>Here the action plan does carry the state, so a filter does the work
 the join would:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>planos <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(</span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;planos_acao&quot;</span>,</span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  <span class="at">uf_ente_recebedor_plano_acao =</span> <span class="st">&quot;PE&quot;</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="at">.limit =</span> <span class="cn">Inf</span></span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>planos <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;planos_acao&quot;</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="at">uf_ente_recebedor_plano_acao =</span> <span class="st">&quot;PE&quot;</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  <span class="at">.limit =</span> <span class="cn">Inf</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>)</span></code></pre></div>
 <p><code>relatorios_gestao_acoes</code> joins two ways — to its report
 through <code>id_relatorio_gestao</code> and to the plan’s action
 through <code>id_acao_meta_plano_acao</code> — which is what lets you
@@ -454,27 +531,90 @@ statement of the account it leaves from.</p>
    │            ├──&lt; distribuicao_recurso_proposta
    │            ├──&lt; proposta_resultado_indicador
    │            └──&lt; analise_proposta
-   └──&lt; beneficiario_emenda_parlamentar</code></pre>
+   └──&lt; beneficiario_emenda_parlamentar
+             └──&lt; indicacao_beneficiario_emenda_parlamentar</code></pre>
+<p>One link changes name on the way:
+<code>indicacao_beneficiario_emenda_parlamentar</code> refers to its
+parent through <code>id_beneficiario_emenda_parlamentar</code>, which
+the parent calls
+<code>id_beneficiario_emenda_parlamentar_programa</code>. The same
+nominations also arrive nested in the parent, as
+<code>indicacoes_beneficiario</code>.</p>
+<p><code>opp</code> holds payment orders issued from a partnership’s
+bank account — Pix transfers, tax payments, bills — with the payee, the
+amount and whether it went through. It is new and small: 137 rows
+between May and September 2026, 21 of them described as tests
+(<code>&quot;teste boleto&quot;</code>, <code>&quot;teste Pix cpf&quot;</code>), so filter
+those out before adding anything up. It hangs off the bank account, but
+not by the account’s own key: it carries <code>id_conta_gf</code>, which
+matches the column of the same name in <code>parceria_conta</code>, not
+<code>id_parceria_conta</code>. The difference matters because the wrong
+join half-works: checked against the whole of
+<code>parceria_conta</code>, all of <code>opp</code>’s accounts match on
+<code>id_conta_gf</code>, one row each, while two of the three also
+coincide numerically with some unrelated <code>id_parceria_conta</code>.
+<code>opp</code> is in no published data model yet, so the data is the
+only evidence.</p>
+<pre><code>parceria_conta ──&lt; opp        (on id_conta_gf)</code></pre>
 <p>Following it:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>propostas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(</span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;proposta&quot;</span>,</span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="at">sg_uf_recebedor =</span> <span class="st">&quot;PE&quot;</span>, <span class="at">situacao_proposta =</span> <span class="st">&quot;Aprovada&quot;</span>,</span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  <span class="at">.limit =</span> <span class="cn">Inf</span></span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>)</span>
-<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a></span>
-<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>parcerias <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;parceria&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>) <span class="sc">|&gt;</span></span>
-<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>  <span class="fu">semi_join</span>(propostas, <span class="at">by =</span> <span class="st">&quot;id_proposta&quot;</span>)</span>
-<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a></span>
-<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a>contas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;parceria_conta&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>) <span class="sc">|&gt;</span></span>
-<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a>  <span class="fu">semi_join</span>(parcerias, <span class="at">by =</span> <span class="st">&quot;id_parceria&quot;</span>)</span></code></pre></div>
-<p><code>extrato_bancario</code> holds 1.1 million rows, so join into it
-rather than collecting it whole — filter by the account you care
-about:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">library</span>(purrr)</span>
-<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a></span>
-<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>extratos <span class="ot">&lt;-</span> <span class="fu">list_rbind</span>(<span class="fu">map</span>(contas<span class="sc">$</span>id_parceria_conta, <span class="cf">function</span>(id) {</span>
-<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;extrato_bancario&quot;</span>, <span class="at">id_parceria_conta =</span> id, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
-<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>}))</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>propostas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;proposta&quot;</span>,</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>  <span class="at">sg_uf_recebedor =</span> <span class="st">&quot;PE&quot;</span>, <span class="at">situacao_proposta =</span> <span class="st">&quot;Aprovada&quot;</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  <span class="at">.limit =</span> <span class="cn">Inf</span></span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>)</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>parcerias <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;parceria&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>) <span class="sc">|&gt;</span></span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>  <span class="fu">semi_join</span>(propostas, <span class="at">by =</span> <span class="st">&quot;id_proposta&quot;</span>)</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>contas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;parceria_conta&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>) <span class="sc">|&gt;</span></span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>  <span class="fu">semi_join</span>(parcerias, <span class="at">by =</span> <span class="st">&quot;id_parceria&quot;</span>)</span></code></pre></div>
+<p><code>extrato_bancario</code> holds 1.4 million rows, so join into it
+rather than collecting it whole — filter by the accounts you care about.
+<code>id_parceria_conta</code> takes up to 200 of them per request, so
+send them in groups:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">library</span>(purrr)</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>grupos <span class="ot">&lt;-</span> <span class="fu">split</span>(contas<span class="sc">$</span>id_parceria_conta,</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>                <span class="fu">ceiling</span>(<span class="fu">seq_along</span>(contas<span class="sc">$</span>id_parceria_conta) <span class="sc">/</span> <span class="dv">200</span>))</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>extratos <span class="ot">&lt;-</span> <span class="fu">list_rbind</span>(<span class="fu">map</span>(grupos, <span class="cf">function</span>(ids) {</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>  <span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;extrato_bancario&quot;</span>, <span class="at">id_parceria_conta =</span> ids, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>}))</span></code></pre></div>
+<p><code>tg_params()</code> says which identifiers take a list, and how
+many values each accepts, in its <code>multiple</code> and
+<code>max_values</code> columns.</p>
+</div>
+<div id="ted" class="section level2">
+<h2>ted</h2>
+<p>Decentralized credit hangs off the action plan too, and the action
+plan off the program. Every link below is declared in the government’s
+data model, and each was also checked against the data: of 200
+identifiers sampled per link, every one found exactly one parent
+row.</p>
+<pre><code>programas ──&lt; planos_acao ──&lt; termos_execucao
+   │              │
+   │              ├──&lt; notas_credito ──&lt; eventos
+   │              ├──&lt; programacoes_financeiras ──&lt; programacoes_financeiras_trf
+   │              ├──&lt; planos_acao_metas ──&lt; planos_acao_metas_etapas
+   │              ├──&lt; planos_trabalho_cronogramas
+   │              ├──&lt; planos_acao_analises
+   │              └──&lt; planos_acao_pareceres
+   ├──&lt; programas_acoes_orcamentarias
+   └──&lt; programas_beneficiarios</code></pre>
+<p>The join columns are <code>id_programa</code>,
+<code>id_plano_acao</code>, <code>id_nota</code>,
+<code>id_programacao</code> and <code>id_meta</code>, each under the
+same name on both sides.</p>
+<p>The identifiers here all take lists, so following the money from a
+set of plans to the budget events of their credit notes is two requests
+per 200 plans rather than one per plan:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>planos <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;planos_acao&quot;</span>, <span class="at">.limit =</span> <span class="dv">200</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>notas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;notas_credito&quot;</span>,</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>                <span class="at">id_plano_acao =</span> planos<span class="sc">$</span>id_plano_acao, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a></span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>eventos <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;ted&quot;</span>, <span class="st">&quot;eventos&quot;</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>                  <span class="at">id_nota =</span> <span class="fu">head</span>(<span class="fu">unique</span>(notas<span class="sc">$</span>id_nota), <span class="dv">200</span>), <span class="at">.limit =</span> <span class="cn">Inf</span>)</span></code></pre></div>
 </div>
 <div id="children-that-arrive-already-joined" class="section level2">
 <h2>Children that arrive already joined</h2>
@@ -566,28 +706,38 @@ have to unnest.</p>
 <p>In <code>fundoafundo</code>: <code>programa_acao_orcamentaria</code>
 and <code>programa_natureza_despesa</code> on <code>programas</code>,
 <code>categorias_despesa_lancamento</code> on
-<code>gestao_financeira_lancamentos</code>, and
+<code>gestao_financeira_lancamentos</code>,
 <code>categorias_despesa_subtransacao</code> on
-<code>gestao_financeira_subtransacoes</code>.</p>
-<p><code>especiais</code> has none: all twenty of its tables have
+<code>gestao_financeira_subtransacoes</code>, and
+<code>saldo_final_dado_bancario</code> on
+<code>planos_acao_dados_bancarios</code>.</p>
+<p>In <code>ted</code>: <code>esfera_orcamentaria_evento</code> and
+<code>natureza_despesa_evento</code> on <code>eventos</code>, and
+<code>formalizacao_termo_execucao</code> and
+<code>link_termo_execucao</code> on <code>termos_execucao</code>.</p>
+<p>In <code>discricionarias</code>: <code>programas_propostas</code> on
+<code>todos_programas</code> and
+<code>proponente_especifico_todos</code> on
+<code>proponentes</code>.</p>
+<p><code>especiais</code> has none: all twenty-three of its tables have
 endpoints.</p>
 <p>To flatten one:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">library</span>(tidyr)</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a></span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>programas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;programa&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
-<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a></span>
-<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>programas <span class="sc">|&gt;</span></span>
-<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  <span class="fu">select</span>(id_programa, ufs_habilitadas) <span class="sc">|&gt;</span></span>
-<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>  <span class="fu">unnest_longer</span>(ufs_habilitadas) <span class="sc">|&gt;</span></span>
-<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  <span class="fu">unnest_wider</span>(ufs_habilitadas)</span>
-<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co">#&gt; # A tibble: … × 4</span></span>
-<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="co">#&gt;   id_programa nm_uf        sg_uf cd_ibge</span></span>
-<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="co">#&gt;         &lt;dbl&gt; &lt;chr&gt;        &lt;chr&gt;   &lt;dbl&gt;</span></span>
-<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a><span class="co">#&gt; 1           7 MINAS GERAIS MG         31</span></span>
-<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a><span class="co">#&gt; …</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">library</span>(tidyr)</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>programas <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;programa&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>programas <span class="sc">|&gt;</span></span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a>  <span class="fu">select</span>(id_programa, ufs_habilitadas) <span class="sc">|&gt;</span></span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a>  <span class="fu">unnest_longer</span>(ufs_habilitadas) <span class="sc">|&gt;</span></span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a>  <span class="fu">unnest_wider</span>(ufs_habilitadas)</span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a><span class="co">#&gt; # A tibble: … × 4</span></span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a><span class="co">#&gt;   id_programa nm_uf        sg_uf cd_ibge</span></span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a><span class="co">#&gt;         &lt;dbl&gt; &lt;chr&gt;        &lt;chr&gt;   &lt;dbl&gt;</span></span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a><span class="co">#&gt; 1           7 MINAS GERAIS MG         31</span></span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a><span class="co">#&gt; …</span></span></code></pre></div>
 <p><code>tg_fields(nested = )</code> tells you the shape before you
 unnest:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">tg_fields</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;programa&quot;</span>, <span class="at">nested =</span> <span class="st">&quot;ufs_habilitadas&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="fu">tg_fields</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;programa&quot;</span>, <span class="at">nested =</span> <span class="st">&quot;ufs_habilitadas&quot;</span>)</span></code></pre></div>
 <p>Note that an empty array is an empty list, not <code>NA</code>, so
 <code>unnest_longer()</code> drops those rows unless you ask it to keep
 them with <code>keep_empty = TRUE</code>.</p>
@@ -597,10 +747,10 @@ them with <code>keep_empty = TRUE</code>.</p>
 <p>Not every identifier finds its parent. Government systems have rows
 that predate a constraint, and rows whose parent has since been removed.
 Check rather than assume:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>planos <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;planos_acao_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">500</span>)</span>
-<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>beneficiarios <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;beneficiarios_especiais&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
-<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a></span>
-<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="fu">sum</span>(<span class="sc">!</span>planos<span class="sc">$</span>id_beneficiario <span class="sc">%in%</span> beneficiarios<span class="sc">$</span>id_beneficiario)</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>planos <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;planos_acao_especiais&quot;</span>, <span class="at">.limit =</span> <span class="dv">500</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>beneficiarios <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;especiais&quot;</span>, <span class="st">&quot;beneficiarios_especiais&quot;</span>, <span class="at">.limit =</span> <span class="cn">Inf</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a><span class="fu">sum</span>(<span class="sc">!</span>planos<span class="sc">$</span>id_beneficiario <span class="sc">%in%</span> beneficiarios<span class="sc">$</span>id_beneficiario)</span></code></pre></div>
 <p>An <code>inner_join()</code> would drop those rows silently. Use
 <code>left_join()</code> and count the <code>NA</code>s, or
 <code>anti_join()</code> to see what did not match, so a gap upstream
@@ -612,10 +762,10 @@ shows up as a number rather than as a quietly smaller answer.</p>
 identifier can appear on more than one row. That is real data, not a
 pagination fault — it can be told apart by fetching a single page and
 checking whether the repeat is already there:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>one_page <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;programas&quot;</span>, <span class="at">.limit =</span> <span class="dv">200</span>)</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a></span>
-<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="fu">nrow</span>(one_page)</span>
-<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">unique</span>(one_page<span class="sc">$</span>id_programa))</span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a>one_page <span class="ot">&lt;-</span> <span class="fu">tg_get</span>(<span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;programas&quot;</span>, <span class="at">.limit =</span> <span class="dv">200</span>)</span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a><span class="fu">nrow</span>(one_page)</span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a><span class="fu">length</span>(<span class="fu">unique</span>(one_page<span class="sc">$</span>id_programa))</span></code></pre></div>
 <p>If the two differ within one request, no amount of pagination caused
 it.</p>
 </div>

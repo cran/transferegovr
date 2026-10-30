@@ -15,7 +15,7 @@ tg_tabelas(modulo = NULL, contagens = FALSE)
 
 \item{counts}{If \code{TRUE}, adds a \code{rows} column with the number of rows each
 table currently holds. This is the only part of this function that needs a
-network connection: it makes one request per table, so \code{tg_tables(counts = TRUE)} with no module makes seventy-four. Responses are cached.}
+network connection: it makes one request per table, so \code{tg_tables(counts = TRUE)} with no module makes eighty-six. Responses are cached.}
 
 \item{modulo}{Portuguese alias for \code{module}, available in \code{\link[=tg_tabelas]{tg_tabelas()}} and
 \code{\link[=tg_campos]{tg_campos()}}.}

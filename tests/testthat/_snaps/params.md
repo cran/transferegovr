@@ -8,7 +8,7 @@
       x The API ignores a parameter it does not recognize and returns every row, so this would look like a query that matched nothing in particular.
       i Did you mean "situacao_proposta"?
       i See `tg_params()` for the parameters this table accepts.
-      i The packaged schema is from "2026-09-28". If the API has gained a parameter since, set `options(transferegovr.validate = FALSE)`.
+      i The packaged schema is from "2026-10-29". If the API has gained a parameter since, set `options(transferegovr.validate = FALSE)`.
 
 # a value outside the enumeration is rejected with the list
 

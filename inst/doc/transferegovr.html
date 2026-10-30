@@ -341,39 +341,47 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 
-<p>TransfereGov publishes four open data APIs on
-<code>api-publica.transferegov.gestao.gov.br</code>, covering
-seventy-four tables and about 7.5 million rows between them. This
-vignette shows how to find your way around them and retrieve data
-without downloading more than you meant to.</p>
+<p>TransfereGov publishes five open data APIs on
+<code>api-publica.transferegov.gestao.gov.br</code>, covering eighty-six
+tables and about 19 million rows between them. This vignette shows how
+to find your way around them and retrieve data without downloading more
+than you meant to.</p>
 <p>The code here is not run when the vignette is built, because it would
 call the government’s servers.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(transferegovr)</span></code></pre></div>
-<div id="the-four-modules" class="section level2">
-<h2>The four modules</h2>
+<div id="the-five-modules" class="section level2">
+<h2>The five modules</h2>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">tg_modules</span>()</span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co">#&gt; # A tibble: 4 × 5</span></span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co">#&gt;   module      label                  tables max_page_size url</span></span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;       &lt;chr&gt;                   &lt;int&gt;         &lt;int&gt; &lt;chr&gt;</span></span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt; 1 especiais   Special transfers          23           200 https://api-publ…</span></span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt; 2 fundoafundo Fund-to-fund transfers     20          1000 https://api-publ…</span></span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt; 3 parcerias   Partnerships               17           200 https://api-publ…</span></span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co">#&gt; 4 ted         Decentralized credit       14          1000 https://api-publ…</span></span></code></pre></div>
-<p><code>especiais</code> covers <strong>special transfers</strong>, the
-mechanism created by Constitutional Amendment 105/2019 that lets an
-individual parliamentary amendment send money straight to a
-municipality’s account, with no agreement to sign.
-<code>fundoafundo</code> covers <strong>fund-to-fund transfers</strong>,
-from a federal fund to a state or municipal one — health, social
-assistance, education. <code>parcerias</code> covers
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co">#&gt; # A tibble: 5 × 5</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co">#&gt;   module          label                           tables max_page_size url</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;           &lt;chr&gt;                            &lt;int&gt;         &lt;int&gt; &lt;chr&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt; 1 discricionarias Discretionary and legal transf…     12           200 http…</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt; 2 especiais       Special transfers                   23           200 http…</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt; 3 fundoafundo     Fund-to-fund transfers              20          1000 http…</span></span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co">#&gt; 4 parcerias       Partnerships                        17           200 http…</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="co">#&gt; 5 ted             Decentralized credit                14          1000 http…</span></span></code></pre></div>
+<p><code>discricionarias</code> covers <strong>discretionary and legal
+transfers</strong>, the module that absorbed SICONV: the agreements and
+<em>contratos de repasse</em> through which the federal government funds
+states, municipalities and consortia, from the proposal and its physical
+schedule through the detailed application of funds, including the
+selection process of the Novo PAC. <code>especiais</code> covers
+<strong>special transfers</strong>, the mechanism created by
+Constitutional Amendment 105/2019 that lets an individual parliamentary
+amendment send money straight to a municipality’s account, with no
+agreement to sign. <code>fundoafundo</code> covers <strong>fund-to-fund
+transfers</strong>, from a federal fund to a state or municipal one —
+health, social assistance, education. <code>parcerias</code> covers
 <strong>partnerships</strong> with civil society organizations, from the
 program that announces them through to the bank statement of the account
 they are paid from. <code>ted</code> covers <strong>decentralized
 credit</strong>, the <em>termos de execução descentralizada</em> through
 which one federal body passes budget to another to carry out a program
 on its behalf.</p>
-<p>What is <em>not</em> here: SICONV agreement data, which is published
-as CSV downloads rather than as an API.</p>
+<p>What is <em>not</em> here yet: the rest of the discretionary and
+legal transfers data — instruments, financial execution and the works
+module — which is still published as CSV downloads rather than as an
+API. The government has announced those stages through October 2027.</p>
 </div>
 <div id="finding-a-table" class="section level2">
 <h2>Finding a table</h2>

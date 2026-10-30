@@ -1,8 +1,8 @@
-test_that("the frozen schema covers four modules and seventy-four tables", {
-  expect_equal(nrow(tg_modules()), 4L)
-  expect_equal(nrow(tg_tables()), 74L)
-  expect_equal(sum(tg_tables()$columns), 1045L)
-  expect_equal(sum(tg_tables()$params), 1059L)
+test_that("the frozen schema covers five modules and eighty-six tables", {
+  expect_equal(nrow(tg_modules()), 5L)
+  expect_equal(nrow(tg_tables()), 86L)
+  expect_equal(sum(tg_tables()$columns), 1300L)
+  expect_equal(sum(tg_tables()$params), 1308L)
 })
 
 test_that("module names, aliases, case and punctuation all resolve", {
@@ -16,6 +16,9 @@ test_that("module names, aliases, case and punctuation all resolve", {
   expect_equal(.tg_match_module("ted"), "ted")
   expect_equal(.tg_match_module("TED"), "ted")
   expect_equal(.tg_match_module("decentralized credit"), "ted")
+  expect_equal(.tg_match_module("discricionarias"), "discricionarias")
+  expect_equal(.tg_match_module("discricionarias e legais"), "discricionarias")
+  expect_equal(.tg_match_module("siconv"), "discricionarias")
 })
 
 test_that("the old module name still resolves to the module that replaced it", {
@@ -134,17 +137,31 @@ test_that("tg_modules() reports each module's own base URL", {
   modules <- tg_modules()
 
   expect_true(all(grepl("^https://api-publica\\.", modules$url)))
-  expect_equal(sum(modules$tables), 74L)
+  expect_equal(sum(modules$tables), 86L)
 })
 
 test_that("each module reports the page limit its service declares", {
-  # Not one number: especiais and parcerias answer 422 above 200 rows a page,
-  # fundoafundo and ted above 1000.
+  # Not one number: discricionarias, especiais and parcerias answer 422 above
+  # 200 rows a page, fundoafundo and ted above 1000.
   limits <- stats::setNames(tg_modules()$max_page_size, tg_modules()$module)
 
   expect_equal(
-    limits[c("especiais", "fundoafundo", "parcerias", "ted")],
-    c(especiais = 200L, fundoafundo = 1000L, parcerias = 200L, ted = 1000L)
+    limits[
+      c("discricionarias", "especiais", "fundoafundo", "parcerias", "ted")
+    ],
+    c(
+      discricionarias = 200L, especiais = 200L, fundoafundo = 1000L,
+      parcerias = 200L, ted = 1000L
+    )
+  )
+})
+
+test_that("the newest module's shortcut routes to it", {
+  # Offline: the schema error names the module the shortcut resolved to.
+  expect_error(
+    tg_discricionarias("nao_existe"),
+    "discricionarias",
+    class = "transferegovr_schema_error"
   )
 })
 

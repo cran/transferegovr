@@ -347,22 +347,22 @@ about knowing what a download will cost before starting it.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(transferegovr)</span></code></pre></div>
 <div id="measure-first" class="section level2">
 <h2>Measure first</h2>
-<p>The seventy-four tables hold about 7.5 million rows between them,
-spread very unevenly — from none at all in
-<code>especiais/orgaos_analises_pendentes_especiais</code> to 1,362,980
-in <code>parcerias/extrato_bancario</code>.</p>
+<p>The eighty-six tables hold about 19 million rows between them, spread
+very unevenly — from none at all in
+<code>especiais/orgaos_analises_pendentes_especiais</code> to 5,052,521
+in <code>discricionarias/plano_aplicado_detalhado</code>.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>sizes <span class="ot">&lt;-</span> <span class="fu">tg_tables</span>(<span class="at">counts =</span> <span class="cn">TRUE</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>sizes[<span class="fu">order</span>(<span class="sc">-</span>sizes<span class="sc">$</span>rows), <span class="fu">c</span>(<span class="st">&quot;module&quot;</span>, <span class="st">&quot;table&quot;</span>, <span class="st">&quot;columns&quot;</span>, <span class="st">&quot;rows&quot;</span>)]</span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co">#&gt; # A tibble: 74 × 4</span></span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt;    module      table                                   columns    rows</span></span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt;    &lt;chr&gt;       &lt;chr&gt;                                     &lt;int&gt;   &lt;dbl&gt;</span></span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt;  1 parcerias   extrato_bancario                             13 1362980</span></span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt;  2 fundoafundo gestao_financeira_lancamentos                28 1160094</span></span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co">#&gt;  3 especiais   gestao_financeira_lancamentos_especiais      34  735012</span></span>
-<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="co">#&gt;  4 especiais   planos_trabalho_historico                     5  461164</span></span>
-<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a><span class="co">#&gt;  5 parcerias   item_proposta                                14  428078</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co">#&gt; # A tibble: 86 × 4</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt;    module          table                           columns    rows</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt;    &lt;chr&gt;           &lt;chr&gt;                             &lt;int&gt;   &lt;dbl&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt;  1 discricionarias plano_aplicado_detalhado             15 5052521</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt;  2 discricionarias perguntas_respostas_selecao_pac       6 1899784</span></span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co">#&gt;  3 discricionarias meta_crono_fisico                    18 1562265</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="co">#&gt;  4 parcerias       extrato_bancario                     13 1362980</span></span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a><span class="co">#&gt;  5 discricionarias todos_programas                      37 1258456</span></span>
 <span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a><span class="co">#&gt;  …</span></span></code></pre></div>
-<p>That call makes seventy-four requests, and caches them. For a single
+<p>That call makes eighty-six requests, and caches them. For a single
 table:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">tg_count</span>(<span class="st">&quot;fundoafundo&quot;</span>, <span class="st">&quot;gestao_financeira_lancamentos&quot;</span>)</span>
 <span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co">#&gt; [1] 1160094</span></span></code></pre></div>
@@ -377,25 +377,27 @@ rather than the whole table:</p>
 <div id="what-a-page-costs" class="section level2">
 <h2>What a page costs</h2>
 <p>Each module caps a page at its own size: <strong>200 rows</strong> in
-<code>especiais</code> and <code>parcerias</code>, <strong>1000</strong>
-in <code>fundoafundo</code> and <code>ted</code>.
-<code>tg_modules()</code> reports it, and <code>.page_size</code>
-defaults to it. Unlike some APIs, these do not silently truncate a
-larger request — one row over the cap is a <code>422</code>, and the
-package refuses it before sending:</p>
+<code>discricionarias</code>, <code>especiais</code> and
+<code>parcerias</code>, <strong>1000</strong> in
+<code>fundoafundo</code> and <code>ted</code>. <code>tg_modules()</code>
+reports it, and <code>.page_size</code> defaults to it. Unlike some
+APIs, these do not silently truncate a larger request — one row over the
+cap is a <code>422</code>, and the package refuses it before
+sending:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">tg_get</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;proposta&quot;</span>, <span class="at">.page_size =</span> <span class="dv">201</span>)</span>
 <span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="co">#&gt; Error in `tg_get()`:</span></span>
 <span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="co">#&gt; ! `.page_size` must be a whole number between 1 and 200.</span></span></code></pre></div>
 <p>So the arithmetic is simple and worth doing, and the cap matters as
 much as the size. The largest table,
-<code>parcerias/extrato_bancario</code>, is
-<code>ceiling(1362980 / 200)</code> = <strong>6,815 requests</strong> —
-at the default throttle of sixty a minute, nearly two hours. The second
-largest is barely smaller but lives in a module that serves pages of
-1000, so it takes 1,161 requests, about twenty minutes.</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>rows <span class="ot">&lt;-</span> <span class="fu">tg_count</span>(<span class="st">&quot;parcerias&quot;</span>, <span class="st">&quot;extrato_bancario&quot;</span>)</span>
+<code>discricionarias/plano_aplicado_detalhado</code>, is
+<code>ceiling(5052521 / 200)</code> = <strong>25,263 requests</strong> —
+at the default throttle of sixty a minute, about seven hours.
+<code>fundoafundo/gestao_financeira_lancamentos</code> has 1.2 million
+rows but lives in a module that serves pages of 1000, so it takes 1,161
+requests, about twenty minutes.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>rows <span class="ot">&lt;-</span> <span class="fu">tg_count</span>(<span class="st">&quot;discricionarias&quot;</span>, <span class="st">&quot;plano_aplicado_detalhado&quot;</span>)</span>
 <span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="fu">ceiling</span>(rows <span class="sc">/</span> <span class="dv">200</span>)</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co">#&gt; [1] 6815</span></span></code></pre></div>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co">#&gt; [1] 25263</span></span></code></pre></div>
 <p>If you genuinely need a table that size, consider whether a filter
 narrows it first, and raise the throttle deliberately rather than by
 accident:</p>

@@ -8,7 +8,7 @@
 \description{
 \if{html}{\figure{logo.svg}{options: style='float: right' alt='logo' width='120'}}
 
-Provides a modern interface to the open data application programming interfaces of the Brazilian federal government's 'TransfereGov' platform (\url{https://www.gov.br/transferegov/pt-br/ferramentas-gestao/dados-abertos}). Covers the special transfers, fund-to-fund transfers, partnership management, and decentralized credit ('TED') modules, which together publish seventy-four tables on action plans, programs, proposals, partnerships, budget commitments, credit notes, financial execution, management reports, and payment orders. Filters are the services' own typed query parameters, validated against the published schema before a request is made, and results are returned as tidy tibbles with types taken from that schema. Automatic pagination, request throttling, retries with exponential backoff, and an optional response cache are included.
+Provides a modern interface to the open data application programming interfaces of the Brazilian federal government's 'TransfereGov' platform (\url{https://www.gov.br/transferegov/pt-br/ferramentas-gestao/dados-abertos}). Covers the discretionary and legal transfers, special transfers, fund-to-fund transfers, partnership management, and decentralized credit ('TED') modules, which together publish eighty-six tables on action plans, programs, proposals, partnerships, budget commitments, credit notes, financial execution, management reports, and payment orders. Filters are the services' own typed query parameters, validated against the published schema before a request is made, and results are returned as tidy tibbles with types taken from that schema. Automatic pagination, request throttling, retries with exponential backoff, and an optional response cache are included.
 }
 \seealso{
 Useful links:
@@ -20,16 +20,16 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Andre Leite \email{leite@castlab.org} (\href{https://orcid.org/0000-0002-4718-9766}{ORCID})
+\strong{Maintainer}: André Leite \email{leite@castlab.org} (\href{https://orcid.org/0000-0002-4718-9766}{ORCID})
 
 Authors:
 \itemize{
-  \item Andre Leite \email{leite@castlab.org} (\href{https://orcid.org/0000-0002-4718-9766}{ORCID})
-  \item Marcos Wasiliew \email{marcos.wasiliew@sepe.pe.gov.br}
+  \item André Leite \email{leite@castlab.org} (\href{https://orcid.org/0000-0002-4718-9766}{ORCID})
+  \item Marcos Wasiliew \email{marcos.wasiliew@gmail.com} (\href{https://orcid.org/0009-0004-4694-3159}{ORCID})
   \item Hugo Vasconcelos \email{hugo.vasconcelos@ufpe.br} (\href{https://orcid.org/0000-0001-6249-0920}{ORCID})
   \item Carlos Amorim \email{carlos.agaf@ufpe.br} (\href{https://orcid.org/0000-0001-6315-8305}{ORCID})
   \item Diogo Bezerra \email{diogo.bezerra@ufpe.br} (\href{https://orcid.org/0000-0002-1216-8674}{ORCID})
-  \item Júlia Nascimento Barreto \email{juliabarreto@gd.seplag.pe.gov.br}
+  \item Júlia Nascimento Barreto \email{juliabarreto@gd.seplag.pe.gov.br} (\href{https://orcid.org/0009-0004-2851-7770}{ORCID})
 }
 
 }

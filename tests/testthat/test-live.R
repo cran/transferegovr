@@ -45,10 +45,16 @@ test_that("every table in the frozen schema still answers", {
   }
 
   for (i in seq_len(nrow(tables))) {
+    # discricionarias/propostas_canceladas holds a row the service cannot
+    # serialize (its 71st, on 2026-10-29): any page containing it is a 500.
+    # Fetched in pages of 50 so the table is still checked. If this starts
+    # failing with a 500, the poison row moved into the first fifty.
+    page_size <- if (tables$table[[i]] == "propostas_canceladas") 50L else NULL
+
     result <- tryCatch(
       withCallingHandlers(
         tg_get(tables$module[[i]], tables$table[[i]], .limit = 50,
-               .progress = FALSE),
+               .page_size = page_size, .progress = FALSE),
         warning = function(w) {
           if (is_masked(w)) invokeRestart("muffleWarning")
         }
@@ -102,9 +108,10 @@ test_that("the frozen columns match what the services send", {
     table <- tables$table[[i]]
 
     # Only names are compared here; the masked columns' warning is covered
-    # above.
+    # above. The small page dodges the poison row in propostas_canceladas,
+    # which a default-size page would include.
     rows <- suppressWarnings(
-      tg_get(module, table, .limit = 1, .progress = FALSE)
+      tg_get(module, table, .limit = 1, .page_size = 50, .progress = FALSE)
     )
     if (nrow(rows) == 0L) {
       next
@@ -180,6 +187,20 @@ test_that("pages of 1000 hold the same rows as pages of 200", {
   expect_equal(big$id_etapa, small$id_etapa)
 })
 
+test_that("discricionarias pages like the others", {
+  skip_unless_live()
+
+  # Order stability is what makes pagination safe, and it is a per-service
+  # property, so the newest module is checked like the ones before it.
+  big <- tg_get("discricionarias", "propostas", .limit = 400,
+                .page_size = 200, .progress = FALSE)
+  small <- tg_get("discricionarias", "propostas", .limit = 400,
+                  .page_size = 100, .progress = FALSE, .cache = FALSE)
+
+  expect_equal(nrow(big), 400L)
+  expect_equal(big$id_proposta, small$id_proposta)
+})
+
 test_that("an offset lands on the row it names", {
   skip_unless_live()
 
@@ -236,16 +257,25 @@ test_that("the parameters frozen as lists are the ones that take lists", {
 
   # The OpenAPI documents do not say which parameters take a list, so the
   # schema builder asked the service. Ask again: a list-taking parameter
-  # rejects a non-integer with a message about comma-separated integers.
+  # rejects a non-integer, most with a 400 naming comma-separated integers,
+  # while `discricionarias/propostas*` crash on it with a bare 500. Either
+  # way, a frozen list parameter answering a non-integer with 200 means it
+  # stopped being one.
   wrong <- character()
   for (module in tg_modules()$module) {
     for (table in tg_tables(module)$table) {
       params <- tg_params(module, table)
       for (param in params$param[params$multiple]) {
-        body <- httr2::resp_body_string(
-          raw_response(module, table, stats::setNames(list("x"), param))
+        response <- raw_response(
+          module, table, stats::setNames(list("x"), param)
         )
-        if (!grepl("separados por v", body, fixed = TRUE)) {
+        status <- httr2::resp_status(response)
+        rejected <- status == 500L || (
+          status == 400L &&
+            grepl("separados por v", httr2::resp_body_string(response),
+                  fixed = TRUE)
+        )
+        if (!rejected) {
           wrong <- c(wrong, paste0(module, "/", table, " ", param))
         }
       }
@@ -263,11 +293,24 @@ test_that("a list means any of its values, up to the frozen limit", {
   both <- tg_count("ted", "planos_acao_metas", id_plano_acao = c(3, 4))
   expect_equal(both, one + other)
 
+  # The same arithmetic on the module whose endpoints validate lists with a
+  # crash rather than a 400: "is one of" has to hold there too.
+  first <- tg_count("discricionarias", "propostas", id_proposta = 73142)
+  second <- tg_count("discricionarias", "propostas", id_proposta = 1056231)
+  union <- tg_count(
+    "discricionarias", "propostas", id_proposta = c(73142, 1056231)
+  )
+  expect_equal(union, first + second)
+
   # The client refuses a list over the limit before sending it, so the
   # server's own limit is checked with raw requests at the limit and past it.
+  # What "past it" answers is not uniform: a 400 naming the limit on most
+  # endpoints, the bare 500 on `discricionarias/propostas`.
   for (case in list(
-    list("especiais", "devolucao_especiais", "id_devolucao"),
-    list("ted", "planos_acao", "id_plano_acao")
+    list("especiais", "devolucao_especiais", "id_devolucao", 400L),
+    list("ted", "planos_acao", "id_plano_acao", 400L),
+    list("discricionarias", "todos_programas", "id_programa", 400L),
+    list("discricionarias", "propostas", "id_proposta", 500L)
   )) {
     limit <- with(
       tg_params(case[[1]], case[[2]]),
@@ -279,7 +322,10 @@ test_that("a list means any of its values, up to the frozen limit", {
       )
       httr2::resp_status(raw_response(case[[1]], case[[2]], query))
     }, integer(1))
-    expect_equal(status, c(200L, 400L), label = paste(case, collapse = "/"))
+    expect_equal(
+      status, c(200L, case[[4]]),
+      label = paste(case[1:3], collapse = "/")
+    )
   }
 })
 
@@ -299,10 +345,14 @@ test_that("the service really does ignore an unknown parameter", {
 
   expect_equal(bogus, total)
 
-  # The newest module behaves the same way.
+  # The newer modules behave the same way.
   expect_equal(
     tg_count("ted", "termos_execucao", tx_situacao = "x"),
     tg_count("ted", "termos_execucao")
+  )
+  expect_equal(
+    tg_count("discricionarias", "proponentes", xx_nao_existe = "x"),
+    tg_count("discricionarias", "proponentes")
   )
 })
 

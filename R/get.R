@@ -2,7 +2,7 @@
 
 #' Retrieve rows from a TransfereGov table
 #'
-#' Queries one of the seventy-four tables published by the TransfereGov open
+#' Queries one of the eighty-six tables published by the TransfereGov open
 #' data APIs and returns them as a tibble, with columns typed from the API's own
 #' schema.
 #'
@@ -39,7 +39,8 @@
 #' # Pagination
 #'
 #' Each request returns one page of at most the module's page limit — 200 rows
-#' for `especiais` and `parcerias`, 1000 for `fundoafundo` and `ted` — so a
+#' for `discricionarias`, `especiais` and `parcerias`, 1000 for `fundoafundo`
+#' and `ted` — so a
 #' larger `.limit` is met by fetching successive pages. `.limit` counts rows,
 #' not pages; use `Inf` for every matching row. Several tables hold hundreds of
 #' thousands of rows, so check the size with [tg_count()] first.
@@ -50,8 +51,8 @@
 #' number of rows collected is checked against the total the API reports, and a
 #' mismatch is reported as a warning.
 #'
-#' @param module A module name from [tg_modules()]: `"especiais"`,
-#'   `"fundoafundo"`, `"parcerias"` or `"ted"`. Aliases such as
+#' @param module A module name from [tg_modules()]: `"discricionarias"`,
+#'   `"especiais"`, `"fundoafundo"`, `"parcerias"` or `"ted"`. Aliases such as
 #'   `"fundo_a_fundo"` are accepted.
 #' @param table A table name from [tg_tables()].
 #' @param ... Filters, named after the parameters they set. See the Filters
@@ -129,8 +130,8 @@ tg_obter <- tg_get
 #'
 #' Asks the API for the number of rows matching a set of filters without
 #' retrieving them. Worth doing before a large [tg_get()]: the biggest table in
-#' these APIs holds over a million rows, which at 200 rows a request is more
-#' than five thousand requests.
+#' these APIs holds over five million rows, which at 200 rows a request is more
+#' than twenty-five thousand requests.
 #'
 #' @inheritParams tg_get
 #' @param ... Filters, named after the parameters they set. See [tg_get()].
@@ -235,6 +236,7 @@ tg_atualizado_em <- tg_updated_at
 #'   tg_fundo_a_fundo("programas", .limit = 10)
 #'   tg_especiais("programas_especiais", .limit = 10)
 #'   tg_ted("termos_execucao", .limit = 10)
+#'   tg_discricionarias("propostas", .limit = 10)
 #' }
 NULL
 
@@ -260,6 +262,12 @@ tg_especiais <- function(table, ...) {
 #' @export
 tg_ted <- function(table, ...) {
   tg_get("ted", table, ...)
+}
+
+#' @rdname module_shortcuts
+#' @export
+tg_discricionarias <- function(table, ...) {
+  tg_get("discricionarias", table, ...)
 }
 
 # Result metadata -------------------------------------------------------------

@@ -7,14 +7,14 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ## -----------------------------------------------------------------------------
 # sizes <- tg_tables(counts = TRUE)
 # sizes[order(-sizes$rows), c("module", "table", "columns", "rows")]
-# #> # A tibble: 74 × 4
-# #>    module      table                                   columns    rows
-# #>    <chr>       <chr>                                     <int>   <dbl>
-# #>  1 parcerias   extrato_bancario                             13 1362980
-# #>  2 fundoafundo gestao_financeira_lancamentos                28 1160094
-# #>  3 especiais   gestao_financeira_lancamentos_especiais      34  735012
-# #>  4 especiais   planos_trabalho_historico                     5  461164
-# #>  5 parcerias   item_proposta                                14  428078
+# #> # A tibble: 86 × 4
+# #>    module          table                           columns    rows
+# #>    <chr>           <chr>                             <int>   <dbl>
+# #>  1 discricionarias plano_aplicado_detalhado             15 5052521
+# #>  2 discricionarias perguntas_respostas_selecao_pac       6 1899784
+# #>  3 discricionarias meta_crono_fisico                    18 1562265
+# #>  4 parcerias       extrato_bancario                     13 1362980
+# #>  5 discricionarias todos_programas                      37 1258456
 # #>  …
 
 ## -----------------------------------------------------------------------------
@@ -33,9 +33,9 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 # #> ! `.page_size` must be a whole number between 1 and 200.
 
 ## -----------------------------------------------------------------------------
-# rows <- tg_count("parcerias", "extrato_bancario")
+# rows <- tg_count("discricionarias", "plano_aplicado_detalhado")
 # ceiling(rows / 200)
-# #> [1] 6815
+# #> [1] 25263
 
 ## -----------------------------------------------------------------------------
 # options(transferegovr.requests_per_minute = 120)

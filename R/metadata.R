@@ -133,7 +133,7 @@ tg_modulos <- tg_modules
 #' @param counts If `TRUE`, adds a `rows` column with the number of rows each
 #'   table currently holds. This is the only part of this function that needs a
 #'   network connection: it makes one request per table, so `tg_tables(counts =
-#'   TRUE)` with no module makes seventy-four. Responses are cached.
+#'   TRUE)` with no module makes eighty-six. Responses are cached.
 #' @param modulo Portuguese alias for `module`, available in [tg_tabelas()] and
 #'   [tg_campos()].
 #' @param contagens Portuguese alias for `counts`, available only in
@@ -204,7 +204,7 @@ tg_tabelas <- function(modulo = NULL, contagens = FALSE) {
   tg_tables(modulo, contagens)
 }
 
-# One request per table. A progress bar because seventy-four throttled requests
+# One request per table. A progress bar because eighty-six throttled requests
 # take the better part of a minute the first time, and none after that while
 # the cache is warm.
 .tg_row_counts <- function(modules, tables) {

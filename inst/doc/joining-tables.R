@@ -6,6 +6,23 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 # library(dplyr)
 
 ## -----------------------------------------------------------------------------
+# pernambuco <- tg_get("discricionarias", "proponentes",
+#                      uf_proponente = "PE", .limit = Inf)
+# 
+# selecao <- tg_get("discricionarias", "propostas_selecao_pac",
+#                   id_proponente = head(pernambuco$id_proponente, 200),
+#                   .limit = Inf)
+# 
+# formalizacao <- tg_get("discricionarias", "proposta_formalizacao_pac",
+#                        id_proposta_selecao_pac =
+#                          head(selecao$id_proposta_selecao_pac, 200),
+#                        .limit = Inf)
+# 
+# propostas <- tg_get("discricionarias", "propostas",
+#                     id_proposta = head(formalizacao$id_proposta, 200),
+#                     .limit = Inf)
+
+## -----------------------------------------------------------------------------
 # beneficiarios <- tg_get("especiais", "beneficiarios_especiais", .limit = Inf)
 # 
 # pernambuco <- beneficiarios |>
@@ -37,9 +54,21 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ## -----------------------------------------------------------------------------
 # library(purrr)
 # 
-# extratos <- list_rbind(map(contas$id_parceria_conta, function(id) {
-#   tg_get("parcerias", "extrato_bancario", id_parceria_conta = id, .limit = Inf)
+# grupos <- split(contas$id_parceria_conta,
+#                 ceiling(seq_along(contas$id_parceria_conta) / 200))
+# 
+# extratos <- list_rbind(map(grupos, function(ids) {
+#   tg_get("parcerias", "extrato_bancario", id_parceria_conta = ids, .limit = Inf)
 # }))
+
+## -----------------------------------------------------------------------------
+# planos <- tg_get("ted", "planos_acao", .limit = 200)
+# 
+# notas <- tg_get("ted", "notas_credito",
+#                 id_plano_acao = planos$id_plano_acao, .limit = Inf)
+# 
+# eventos <- tg_get("ted", "eventos",
+#                   id_nota = head(unique(notas$id_nota), 200), .limit = Inf)
 
 ## -----------------------------------------------------------------------------
 # library(tidyr)

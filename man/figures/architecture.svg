@@ -5,7 +5,7 @@
   <title id="arch-title">transferegovr architecture</title>
   <desc id="arch-desc">A query passes through the public verbs, then parameter
   and schema validation, then the pagination loop, then the HTTP client and its
-  cache, reaching the four services at api-publica.transferegov.gestao.gov.br,
+  cache, reaching the five services at api-publica.transferegov.gestao.gov.br,
   and is parsed back into a typed tibble.</desc>
 
   <defs>
@@ -30,11 +30,14 @@
   </text>
 
   <!-- public verbs -->
-  <rect x="100" y="70" width="740" height="60" rx="10" fill="#F4F8FB" stroke="#12805B" stroke-width="1.5"/>
-  <text x="470" y="94" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">
-    tg_get() · tg_count() · tg_especiais() · tg_fundo_a_fundo() · tg_parcerias() · tg_ted()
+  <rect x="100" y="62" width="740" height="68" rx="10" fill="#F4F8FB" stroke="#12805B" stroke-width="1.5"/>
+  <text x="470" y="84" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">
+    tg_get() · tg_count() · tg_discricionarias() · tg_especiais()
   </text>
-  <text x="470" y="114" text-anchor="middle" fill="#4A6076" font-size="11.5">
+  <text x="470" y="103" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">
+    tg_fundo_a_fundo() · tg_parcerias() · tg_ted()
+  </text>
+  <text x="470" y="122" text-anchor="middle" fill="#4A6076" font-size="11.5">
     filters named after the endpoint's own query parameters, which the services combine with AND
   </text>
 
@@ -55,7 +58,7 @@
   <rect x="484" y="200" width="356" height="96" rx="10" fill="#F4F8FB" stroke="#2E6FD9" stroke-width="1.2"/>
   <text x="662" y="224" text-anchor="middle" fill="#0A2540" font-size="14.5" font-weight="700">metadata.R + sysdata.rda</text>
   <text x="662" y="246" text-anchor="middle" fill="#4A6076" font-size="11.5">OpenAPI schema frozen at build time</text>
-  <text x="662" y="264" text-anchor="middle" fill="#4A6076" font-size="11.5">74 tables · 1045 columns · 1059 parameters</text>
+  <text x="662" y="264" text-anchor="middle" fill="#4A6076" font-size="11.5">86 tables · 1300 columns · 1308 parameters</text>
   <text x="662" y="284" text-anchor="middle" fill="#12805B" font-size="11.5" font-weight="600">rejects unknown names · checks enum values</text>
 
   <g fill="none" stroke="#5D7287" stroke-width="2" stroke-linejoin="round">
@@ -104,38 +107,44 @@
   </text>
   <g fill="none" stroke="#5D7287" stroke-width="2" stroke-linejoin="round">
     <path d="M330 630V664"/>
-    <path d="M185 664H755"/>
+    <path d="M170 664H770"/>
   </g>
   <g fill="none" stroke="#5D7287" stroke-width="2">
-    <path d="M185 664V702" marker-end="url(#arrow)"/>
-    <path d="M375 664V702" marker-end="url(#arrow)"/>
-    <path d="M565 664V702" marker-end="url(#arrow)"/>
-    <path d="M755 664V702" marker-end="url(#arrow)"/>
+    <path d="M170 664V702" marker-end="url(#arrow)"/>
+    <path d="M320 664V702" marker-end="url(#arrow)"/>
+    <path d="M470 664V702" marker-end="url(#arrow)"/>
+    <path d="M620 664V702" marker-end="url(#arrow)"/>
+    <path d="M770 664V702" marker-end="url(#arrow)"/>
   </g>
 
-  <rect x="100" y="706" width="170" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
-  <text x="185" y="734" text-anchor="middle" fill="#0A2540" font-size="14" font-weight="700">especiais</text>
-  <text x="185" y="756" text-anchor="middle" fill="#4A6076" font-size="11.5">23 tables · 200/page</text>
+  <rect x="100" y="706" width="140" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
+  <text x="170" y="734" text-anchor="middle" fill="#0A2540" font-size="12.5" font-weight="700">discricionarias</text>
+  <text x="170" y="756" text-anchor="middle" fill="#4A6076" font-size="11">12 tables · 200/page</text>
 
-  <rect x="290" y="706" width="170" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
-  <text x="375" y="734" text-anchor="middle" fill="#0A2540" font-size="14" font-weight="700">fundoafundo</text>
-  <text x="375" y="756" text-anchor="middle" fill="#4A6076" font-size="11.5">20 tables · 1000/page</text>
+  <rect x="250" y="706" width="140" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
+  <text x="320" y="734" text-anchor="middle" fill="#0A2540" font-size="12.5" font-weight="700">especiais</text>
+  <text x="320" y="756" text-anchor="middle" fill="#4A6076" font-size="11">23 tables · 200/page</text>
 
-  <rect x="480" y="706" width="170" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
-  <text x="565" y="734" text-anchor="middle" fill="#0A2540" font-size="14" font-weight="700">parcerias</text>
-  <text x="565" y="756" text-anchor="middle" fill="#4A6076" font-size="11.5">17 tables · 200/page</text>
+  <rect x="400" y="706" width="140" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
+  <text x="470" y="734" text-anchor="middle" fill="#0A2540" font-size="12.5" font-weight="700">fundoafundo</text>
+  <text x="470" y="756" text-anchor="middle" fill="#4A6076" font-size="11">20 tables · 1000/page</text>
 
-  <rect x="670" y="706" width="170" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
-  <text x="755" y="734" text-anchor="middle" fill="#0A2540" font-size="14" font-weight="700">ted</text>
-  <text x="755" y="756" text-anchor="middle" fill="#4A6076" font-size="11.5">14 tables · 1000/page</text>
+  <rect x="550" y="706" width="140" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
+  <text x="620" y="734" text-anchor="middle" fill="#0A2540" font-size="12.5" font-weight="700">parcerias</text>
+  <text x="620" y="756" text-anchor="middle" fill="#4A6076" font-size="11">17 tables · 200/page</text>
+
+  <rect x="700" y="706" width="140" height="72" rx="10" fill="#EDF3F9" stroke="#12805B" stroke-width="1.5"/>
+  <text x="770" y="734" text-anchor="middle" fill="#0A2540" font-size="12.5" font-weight="700">ted</text>
+  <text x="770" y="756" text-anchor="middle" fill="#4A6076" font-size="11">14 tables · 1000/page</text>
 
   <!-- and converges again on the way back -->
   <g fill="none" stroke="#5D7287" stroke-width="2" stroke-linejoin="round">
-    <path d="M185 778V812"/>
-    <path d="M375 778V812"/>
-    <path d="M565 778V812"/>
-    <path d="M755 778V812"/>
-    <path d="M185 812H755"/>
+    <path d="M170 778V812"/>
+    <path d="M320 778V812"/>
+    <path d="M470 778V812"/>
+    <path d="M620 778V812"/>
+    <path d="M770 778V812"/>
+    <path d="M170 812H770"/>
     <path d="M470 812V850" marker-end="url(#arrow)"/>
   </g>
 

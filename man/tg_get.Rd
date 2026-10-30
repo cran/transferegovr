@@ -30,8 +30,8 @@ tg_obter(
 )
 }
 \arguments{
-\item{module}{A module name from \code{\link[=tg_modules]{tg_modules()}}: \code{"especiais"},
-\code{"fundoafundo"}, \code{"parcerias"} or \code{"ted"}. Aliases such as
+\item{module}{A module name from \code{\link[=tg_modules]{tg_modules()}}: \code{"discricionarias"},
+\code{"especiais"}, \code{"fundoafundo"}, \code{"parcerias"} or \code{"ted"}. Aliases such as
 \code{"fundo_a_fundo"} are accepted.}
 
 \item{table}{A table name from \code{\link[=tg_tables]{tg_tables()}}.}
@@ -61,7 +61,7 @@ many pages were fetched. A column the API sends as an array of objects
 comes back as a list column; \code{\link[=tg_fields]{tg_fields()}} describes what is inside it.
 }
 \description{
-Queries one of the seventy-four tables published by the TransfereGov open
+Queries one of the eighty-six tables published by the TransfereGov open
 data APIs and returns them as a tibble, with columns typed from the API's own
 schema.
 }
@@ -95,7 +95,8 @@ whole table, so an unchecked typo would return plausible, wrong data.
 
 \section{Pagination}{
 Each request returns one page of at most the module's page limit — 200 rows
-for \code{especiais} and \code{parcerias}, 1000 for \code{fundoafundo} and \code{ted} — so a
+for \code{discricionarias}, \code{especiais} and \code{parcerias}, 1000 for \code{fundoafundo}
+and \code{ted} — so a
 larger \code{.limit} is met by fetching successive pages. \code{.limit} counts rows,
 not pages; use \code{Inf} for every matching row. Several tables hold hundreds of
 thousands of rows, so check the size with \code{\link[=tg_count]{tg_count()}} first.

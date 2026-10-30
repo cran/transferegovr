@@ -11,9 +11,9 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-TransfereGov publishes four open data APIs on
-`api-publica.transferegov.gestao.gov.br`, covering seventy-four tables and about
-7.5 million rows between them. This vignette shows how to find your way around
+TransfereGov publishes five open data APIs on
+`api-publica.transferegov.gestao.gov.br`, covering eighty-six tables and about
+19 million rows between them. This vignette shows how to find your way around
 them and retrieve data without downloading more than you meant to.
 
 The code here is not run when the vignette is built, because it would call the
@@ -23,20 +23,26 @@ government's servers.
 library(transferegovr)
 ```
 
-## The four modules
+## The five modules
 
 ```{r}
 tg_modules()
-#> # A tibble: 4 × 5
-#>   module      label                  tables max_page_size url
-#>   <chr>       <chr>                   <int>         <int> <chr>
-#> 1 especiais   Special transfers          23           200 https://api-publ…
-#> 2 fundoafundo Fund-to-fund transfers     20          1000 https://api-publ…
-#> 3 parcerias   Partnerships               17           200 https://api-publ…
-#> 4 ted         Decentralized credit       14          1000 https://api-publ…
+#> # A tibble: 5 × 5
+#>   module          label                           tables max_page_size url
+#>   <chr>           <chr>                            <int>         <int> <chr>
+#> 1 discricionarias Discretionary and legal transf…     12           200 http…
+#> 2 especiais       Special transfers                   23           200 http…
+#> 3 fundoafundo     Fund-to-fund transfers              20          1000 http…
+#> 4 parcerias       Partnerships                        17           200 http…
+#> 5 ted             Decentralized credit                14          1000 http…
 ```
 
-`especiais` covers **special transfers**, the mechanism created by
+`discricionarias` covers **discretionary and legal transfers**, the module
+that absorbed SICONV: the agreements and *contratos de repasse* through which
+the federal government funds states, municipalities and consortia, from the
+proposal and its physical schedule through the detailed application of funds,
+including the selection process of the Novo PAC. `especiais` covers **special
+transfers**, the mechanism created by
 Constitutional Amendment 105/2019 that lets an individual parliamentary
 amendment send money straight to a municipality's account, with no agreement to
 sign. `fundoafundo` covers **fund-to-fund transfers**, from a federal fund to a
@@ -47,8 +53,10 @@ from. `ted` covers **decentralized credit**, the *termos de execução
 descentralizada* through which one federal body passes budget to another to
 carry out a program on its behalf.
 
-What is *not* here: SICONV agreement data, which is published as CSV downloads
-rather than as an API.
+What is *not* here yet: the rest of the discretionary and legal transfers
+data — instruments, financial execution and the works module — which is still
+published as CSV downloads rather than as an API. The government has announced
+those stages through October 2027.
 
 ## Finding a table
 

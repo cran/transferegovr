@@ -24,11 +24,12 @@ and civil society.
 ## What this package covers
 
 The package targets the public API host,
-`api-publica.transferegov.gestao.gov.br`, which publishes four modules
-and **74 tables** in all:
+`api-publica.transferegov.gestao.gov.br`, which publishes five modules
+and **86 tables** in all:
 
 | Module | Covers | Tables |
 |----|----|----|
+| `discricionarias` | Discretionary and legal transfers, the module that absorbed SICONV: proposals, proponents, programs, physical schedule, detailed application of funds, and the PAC selection process | 12 |
 | `especiais` | Special transfers, created by Constitutional Amendment 105/2019 for individual parliamentary amendments | 23 |
 | `fundoafundo` | Fund-to-fund transfers, from federal funds directly to state, district and municipal funds | 20 |
 | `parcerias` | Partnership management: programs, proposals, partnerships, their financial execution and bank statements | 17 |
@@ -36,9 +37,9 @@ and **74 tables** in all:
 
 Every table in the published data models is reachable. Where the API
 folds a child table into its parent rather than giving it an endpoint of
-its own, it arrives as a list column — 5 of them in `fundoafundo`, 13 in
-`parcerias`, 4 in `ted` — and `tg_fields(nested = )` describes what is
-inside.
+its own, it arrives as a list column — 2 of them in `discricionarias`, 5
+in `fundoafundo`, 13 in `parcerias`, 4 in `ted` — and
+`tg_fields(nested = )` describes what is inside.
 
 ### What it does not cover
 
@@ -48,11 +49,11 @@ inside.
   superseded contract — different column names, a handful of columns
   each way, and a `historico_pagamento_especial` table that the new
   service does not carry.
-- **The Discricionárias e Legais module (SICONV)**, which has no API: it
-  is published as CSV archives at
-  <https://api-publica.transferegov.gestao.gov.br/downloads>. The
-  government has announced APIs for it in four stages between July 2026
-  and October 2027, starting with preparatory acts.
+- **The rest of the Discricionárias e Legais data.** The
+  `discricionarias` API published in October 2026 is the first of four
+  stages the government has announced through October 2027; instruments,
+  financial execution and the works module are still only CSV archives
+  at <https://api-publica.transferegov.gestao.gov.br/downloads>.
 
 ## Installation
 
@@ -95,7 +96,7 @@ tg_get(
 That is almost the whole filtering vocabulary. These services compare
 for equality — no greater-than, no pattern match — and publish no
 ordering or column-selection parameter. The one extension is on
-identifiers: 113 of them take several values and match any, which
+identifiers: 141 of them take several values and match any, which
 `tg_params()` marks as `multiple`:
 
 ``` r
@@ -129,9 +130,9 @@ than after it.
 
 ## Size first, download second
 
-Each request returns one page — at most 200 rows in `especiais` and
-`parcerias`, 1000 in `fundoafundo` and `ted` — and these tables are not
-small. Ask before you fetch:
+Each request returns one page — at most 200 rows in `discricionarias`,
+`especiais` and `parcerias`, 1000 in `fundoafundo` and `ted` — and these
+tables are not small. Ask before you fetch:
 
 ``` r
 tg_count("especiais", "meta_especiais")
@@ -188,7 +189,7 @@ empties it.
 
 ## How it works
 
-<img class="architecture-diagram" src="man/figures/architecture.svg" alt="Architecture of transferegovr: the public verbs pass through parameter and schema validation, the pagination loop, and the HTTP client and its cache, reach the four services, and return through the parser as a typed tibble." width="100%" />
+<img class="architecture-diagram" src="man/figures/architecture.svg" alt="Architecture of transferegovr: the public verbs pass through parameter and schema validation, the pagination loop, and the HTTP client and its cache, reach the five services, and return through the parser as a typed tibble." width="100%" />
 
 Two things in that picture are where a naive client of these APIs loses
 data:
@@ -227,6 +228,7 @@ verbs.
 
 ## Official documentation
 
+- <https://api-publica.transferegov.gestao.gov.br/discricionarias/docs>
 - <https://api-publica.transferegov.gestao.gov.br/especiais/docs>
 - <https://api-publica.transferegov.gestao.gov.br/fundoafundo/docs>
 - <https://api-publica.transferegov.gestao.gov.br/parcerias/docs>
